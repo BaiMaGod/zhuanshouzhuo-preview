@@ -13,9 +13,14 @@ python3 - <<'PY'
 from pathlib import Path
 for p in Path('official-project/JadeBracelet/src/bracelet').glob('*.js'):
     p.write_text(p.read_text().replace('?v=0.2.0',''))
+entry=Path('official-project/JadeBracelet/src/bracelet/main.js')
+text=entry.read_text()
+start=text.index('boot().catch(e => {')
+entry.write_text(text[:start]+'export { boot };\n')
 PY
-printf '%s\n' 'import "./bracelet/main.js";' > official-project/JadeBracelet/src/Main.ts
-layaair --version=3.4.0 build web -p ./official-project/JadeBracelet -o ./official-web | tee .qa/official-build.log
+printf '%s\n' 'import { boot } from "./bracelet/main.js";' 'export class Main { onStart() { void boot(); } }' > official-project/JadeBracelet/src/Main.ts
+JADE_WEB_OUTPUT="$(pwd)/official-web"
+layaair --version=3.4.0 build web -p ./official-project/JadeBracelet -o "$JADE_WEB_OUTPUT" | tee .qa/official-build.log
 test -s official-web/index.html
 test -s official-web/libs/laya.core.js
 test -s official-web/libs/laya.webgl_2D.js
