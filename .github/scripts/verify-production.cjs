@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
 const {chromium}=require(process.cwd()+'/.qa/node_modules/playwright');
+const {PNG}=require(process.cwd()+'/.qa/node_modules/pngjs');
 const base=process.env.JADE_URL||'http://127.0.0.1:8080/';
 const results='.qa/results';
 async function hasText(page,text){return page.evaluate(text=>{
@@ -20,6 +21,26 @@ async function button(page,label,touch){
  if(touch)await page.touchscreen.tap(point.x,point.y);else await page.mouse.click(point.x,point.y);
 }
 async function shot(page,name){const path=results+'/'+name+'.png';await page.screenshot({path});return{name,path,sha256:crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex')}}
+
+async function checkJadePixels(page,viewport){
+ const points=await page.evaluate(()=>{
+  function find(n){if(!n.visible)return null;if(n.text==='A')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
+  const ring=find(Laya.stage).parent,rect=document.querySelector('canvas').getBoundingClientRect(),out=[];
+  for(let a=0;a<360;a+=12)for(const radius of [37,40,43]){
+   const p=ring.localToGlobal(new Laya.Point(radius*Math.cos(a*Math.PI/180),radius*Math.sin(a*Math.PI/180)));
+   out.push({x:rect.left+p.x*rect.width/Laya.stage.width,y:rect.top+p.y*rect.height/Laya.stage.height});
+  }return out;
+ });
+ const png=PNG.sync.read(await page.screenshot());let gold=0;
+ for(const p of points){const x=Math.round(p.x*png.width/viewport.width),y=Math.round(p.y*png.height/viewport.height),i=(y*png.width+x)*4;
+  if(x<0||y<0||x>=png.width||y>=png.height)continue;
+  const r=png.data[i],g=png.data[i+1],b=png.data[i+2];
+  if(r>140&&g>100&&r-b>65&&g-b>25)gold++;
+ }
+ assert.ok(gold>=12,'Jade surface must actually contain generated golden texture; found '+gold+' of '+points.length+' samples');
+ return {goldenSamples:gold,totalSamples:points.length};
+}
+
 async function run(browser,name,viewport,touch,allLevels){
  const context=await browser.newContext({viewport,hasTouch:touch,isMobile:touch,deviceScaleFactor:touch?2:1});
  const page=await context.newPage(),errors=[],screenshots=[];
@@ -28,14 +49,16 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.2.1');assert.equal(provenance.sourceSha,'08ef29e4423cefc7b440aa083f85941b289386c3');
- await page.goto(base+'?debug&v=0.2.1',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.2.2');assert.equal(provenance.sourceSha,'a558eafbc5a60e8037f622dd8d3e413d6ed31f76');
+ await page.goto(base+'?debug&v=0.2.2',{waitUntil:'networkidle'});
  await waitText(page,'入境解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v02'));
  await button(page,'入境解镯',touch);await waitText(page,'开始转动 B');
  await button(page,'开始转动 B',touch);assert.equal(await hasText(page,'开始转动 B'),false);
  screenshots.push(await shot(page,name+'-level1-v02'));
+ const material=await checkJadePixels(page,viewport);
+ console.log(name+' visible jade texture: '+JSON.stringify(material));
  const points=await page.evaluate(()=>{
   function find(n){if(!n.visible)return null;if(n.text==='B')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
   const ring=find(Laya.stage).parent,a=ring.getChildAt(2).rotation,out=[],rect=document.querySelector('canvas').getBoundingClientRect();
@@ -67,7 +90,7 @@ async function run(browser,name,viewport,touch,allLevels){
  fs.writeFileSync(results+'/'+name+'-frames.json',JSON.stringify(frames)); console.log(name+' frame times: '+JSON.stringify(frames));
  assert.ok(frames.p95<100,'CI rendering p95 under 100 ms');
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
- await context.close();return{name,viewport,touch,allLevels,screenshots,frames,errors,passed:true};
+ await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,errors,passed:true};
 }
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
 (async()=>{
@@ -76,7 +99,7 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'08ef29e4423cefc7b440aa083f85941b289386c3',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'a558eafbc5a60e8037f622dd8d3e413d6ed31f76',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final V0.2 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
 })().catch(e=>{console.error(e);process.exit(1)});
