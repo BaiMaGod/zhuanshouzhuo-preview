@@ -12,7 +12,7 @@ cp -R source/dist/js official-project/JadeBracelet/src/bracelet
 python3 - <<'PY'
 from pathlib import Path
 for p in Path('official-project/JadeBracelet/src/bracelet').glob('*.js'):
-    p.write_text(p.read_text().replace('?v=0.2.0',''))
+    p.write_text(p.read_text().replace('?v=0.2.1',''))
 entry=Path('official-project/JadeBracelet/src/bracelet/main.js')
 text=entry.read_text()
 start=text.index('boot().catch(e => {')
