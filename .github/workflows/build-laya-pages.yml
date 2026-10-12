@@ -8,7 +8,7 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '790cae00bca85f33eb00fbe5be4eaed1824533a8'
+        default: 'cbc2b469d94e45070adbd27c87327b7cc7f97c64'
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '790cae00bca85f33eb00fbe5be4eaed1824533a8' }}
+          ref: ${{ inputs.source_ref || 'cbc2b469d94e45070adbd27c87327b7cc7f97c64' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -42,9 +42,13 @@ jobs:
       - name: Install build dependencies
         working-directory: source
         run: npm install --no-audit --no-fund
-      - name: Compile and run 22 rule and controller checks
+      - name: Compile and run 24 rule, controller and material checks
         working-directory: source
-        run: npm test
+        run: |
+          npm run typecheck
+          npm test
+      - name: Build official LayaAir 3.4 Web export and seal production payload
+        run: bash .github/scripts/build-official.sh
       - name: Install browser verification dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1
@@ -52,19 +56,7 @@ jobs:
       - name: Verify real Laya rendering, mouse and mobile touch
         run: |
           python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
-          node .github/scripts/verify-game.cjs
-      - name: Record release provenance and inspect publish payload
-        run: |
-          node --input-type=module <<'JS'
-          import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
-          import {execFileSync} from 'node:child_process';
-          const sourceSha=execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
-          const version=JSON.parse(readFileSync('source/dist/version.json'));
-          writeFileSync('source/dist/release.json',JSON.stringify({...version,sourceSha,previewSha:process.env.GITHUB_SHA,browserQA:'Chromium desktop pointer + mobile touch + ten levels passed'},null,2));
-          function walk(dir){for(const f of readdirSync(dir,{withFileTypes:true})){const path=dir+'/'+f.name;if(f.isDirectory())walk(path);else if(/\.(ts|md)$/.test(f.name))throw Error('Source/document leaked into publish payload: '+path)}}
-          walk('source/dist');
-          JS
-          touch source/dist/.nojekyll
+          node .github/scripts/verify-production.cjs
       - name: Retain verified Web build
         uses: actions/upload-artifact@v4
         with:
@@ -88,3 +80,17 @@ jobs:
       - name: Publish preview
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify actual public Pages release
+        env:
+          JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
+        run: |
+          mkdir -p .qa/local-verification
+          cp -R .qa/results/. .qa/local-verification/
+          node .github/scripts/verify-production.cjs
+      - name: Retain public browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jade-public-verification-v02
+          path: .qa/results
+          retention-days: 7
