@@ -1,0 +1,90 @@
+name: Build, verify and deploy jade game
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Formal source commit or branch
+        required: true
+        default: '790cae00bca85f33eb00fbe5be4eaed1824533a8'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: jade-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout preview deployment configuration
+        uses: actions/checkout@v4
+      - name: Checkout tested formal source
+        uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || '790cae00bca85f33eb00fbe5be4eaed1824533a8' }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install build dependencies
+        working-directory: source
+        run: npm install --no-audit --no-fund
+      - name: Compile and run 22 rule and controller checks
+        working-directory: source
+        run: npm test
+      - name: Install browser verification dependencies
+        run: |
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1
+          .qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify real Laya rendering, mouse and mobile touch
+        run: |
+          python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
+          node .github/scripts/verify-game.cjs
+      - name: Record release provenance and inspect publish payload
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const sourceSha=execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          const version=JSON.parse(readFileSync('source/dist/version.json'));
+          writeFileSync('source/dist/release.json',JSON.stringify({...version,sourceSha,previewSha:process.env.GITHUB_SHA,browserQA:'Chromium desktop pointer + mobile touch + ten levels passed'},null,2));
+          function walk(dir){for(const f of readdirSync(dir,{withFileTypes:true})){const path=dir+'/'+f.name;if(f.isDirectory())walk(path);else if(/\.(ts|md)$/.test(f.name))throw Error('Source/document leaked into publish payload: '+path)}}
+          walk('source/dist');
+          JS
+          touch source/dist/.nojekyll
+      - name: Retain verified Web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: jade-verified-web-build
+          path: source/dist
+          retention-days: 7
+      - name: Upload browser verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jade-browser-verification
+          path: .qa/results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Upload game-only Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: source/dist
+      - name: Publish preview
+        id: deployment
+        uses: actions/deploy-pages@v4
