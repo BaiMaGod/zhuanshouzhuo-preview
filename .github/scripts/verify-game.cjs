@@ -21,10 +21,12 @@ async function run(browser,viewport,touch,allLevels){
  page.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});
  await page.goto('http://127.0.0.1:8080/?debug',{waitUntil:'networkidle'});
  await page.waitForFunction(()=>!!window.jadeDebug?.game,{timeout:30000});
+ await page.screenshot({path:'.qa/results/'+(touch?'mobile':'desktop')+'-home-v02.png'});
  await button(page,'入境解镯',touch);
  await page.waitForFunction(()=>window.jadeDebug.game.modalOpen);
  await button(page,'开始转动 B',touch);
  await page.waitForFunction(()=>!window.jadeDebug.game.modalOpen);
+ await page.screenshot({path:'.qa/results/'+(touch?'mobile':'desktop')+'-level1-v02.png'});
  const points=await page.evaluate(()=>{
   const g=window.jadeDebug.game,C=window.jadeDebug.Core,r=C.ring(g.model.state,'B');
   const rect=document.querySelector('canvas').getBoundingClientRect(),out=[];
@@ -48,16 +50,19 @@ async function run(browser,viewport,touch,allLevels){
  assert.equal(await page.evaluate(()=>window.jadeDebug.game.save.data.unlocked),1);
  console.log((touch?'Mobile touch':'Desktop pointer')+' cleared level 1 using real browser input.');
  if(allLevels){
-  await page.evaluate(()=>{const g=window.jadeDebug.game;g.save.data.unlocked=9;g.tutorialSeen=true;g.audio.enabled=false});
-  for(let i=0;i<10;i++){
-   await page.evaluate(i=>window.jadeDebug.game.load(i),i);
-   await page.evaluate(()=>window.jadeDebug.game.automatic(true));
-   await page.waitForFunction(()=>window.jadeDebug.game.settled,{timeout:15000});
+  for(let i=1;i<10;i++){
+   await button(page,'进入第 '+(i+1)+' 境',touch);
+   await page.waitForFunction(i=>window.jadeDebug.game.model.state.index===i,i);
+   if(i===4||i===9)await page.screenshot({path:'.qa/results/mobile-level'+(i+1)+'-v02.png'});
+   await button(page,'演示',touch);
+   await page.waitForFunction(()=>window.jadeDebug.game.settled,null,{timeout:60000});
    const s=await page.evaluate(()=>window.jadeDebug.getState());
    assert.ok(s.rings.every(r=>r.life==='removed'),'Level '+(i+1)+' must clear');
-   console.log('Actual Laya scene: level '+(i+1)+' cleared.');
+   console.log('Real UI progression and legal demo: level '+(i+1)+' cleared.');
   }
  }
+ await button(page,'再解一次',touch);
+ await page.waitForFunction(()=>window.jadeDebug.game.model.state.steps===0&&!window.jadeDebug.game.modalOpen);
  await page.screenshot({path:'.qa/results/'+(touch?'mobile':'desktop')+'.png'});
  await context.close();
  assert.deepEqual(errors,[],'Browser errors');
