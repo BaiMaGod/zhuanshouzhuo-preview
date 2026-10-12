@@ -1,31 +1,26 @@
-name: Build, verify and deploy jade game
+name: Review jade art V0.2 before publication
 
 on:
   push:
-    branches: [main]
+    branches: [jade-art-v02]
   workflow_dispatch:
     inputs:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '790cae00bca85f33eb00fbe5be4eaed1824533a8'
+        default: 'cbc2b469d94e45070adbd27c87327b7cc7f97c64'
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: jade-pages
+  group: jade-art-review
   cancel-in-progress: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout preview deployment configuration
         uses: actions/checkout@v4
@@ -33,7 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '790cae00bca85f33eb00fbe5be4eaed1824533a8' }}
+          ref: ${{ inputs.source_ref || 'cbc2b469d94e45070adbd27c87327b7cc7f97c64' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -42,7 +37,7 @@ jobs:
       - name: Install build dependencies
         working-directory: source
         run: npm install --no-audit --no-fund
-      - name: Compile and run 22 rule and controller checks
+      - name: Compile and run 24 rule, controller and material checks
         working-directory: source
         run: npm test
       - name: Install browser verification dependencies
@@ -79,12 +74,3 @@ jobs:
           path: .qa/results
           if-no-files-found: ignore
           retention-days: 7
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-      - name: Upload game-only Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: source/dist
-      - name: Publish preview
-        id: deployment
-        uses: actions/deploy-pages@v4
