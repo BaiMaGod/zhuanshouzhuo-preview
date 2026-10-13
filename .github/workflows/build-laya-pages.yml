@@ -8,7 +8,7 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '165d90ff6ca2e1ded1527a82047ca86aaacff655'
+        default: '5fb58b5831ba1d69643c26b24e617b0fe6330bce'
 
 env:
   PUBLISH_PREVIEW: 'true'
@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '165d90ff6ca2e1ded1527a82047ca86aaacff655' }}
+          ref: ${{ inputs.source_ref || '5fb58b5831ba1d69643c26b24e617b0fe6330bce' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -45,7 +45,7 @@ jobs:
       - name: Install build dependencies
         working-directory: source
         run: npm install --no-audit --no-fund
-      - name: Compile and run 31 rule, controller and material checks
+      - name: Compile and run 34 rule, controller and material checks
         working-directory: source
         run: |
           set -euo pipefail
@@ -104,6 +104,7 @@ jobs:
         if: always() && env.PUBLISH_PREVIEW == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: jade-public-verification-v040
+          name: jade-public-verification-v050
           path: .qa/public-results
           retention-days: 7
+

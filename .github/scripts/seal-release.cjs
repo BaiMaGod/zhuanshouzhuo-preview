@@ -11,7 +11,7 @@ html=html.replace('<head>','<head><link rel="icon" href="data:,">');
 fs.writeFileSync(root+'/index.html',html);
 const sourceSha=cp.execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const version=JSON.parse(fs.readFileSync(root+'/version.json'));
-if(version.version!=='0.4.1'||sourceSha!=='165d90ff6ca2e1ded1527a82047ca86aaacff655')throw Error('Wrong game revision');
+if(version.version!=='0.5.0'||sourceSha!=='5fb58b5831ba1d69643c26b24e617b0fe6330bce')throw Error('Wrong game revision');
 fs.writeFileSync(root+'/release.json',JSON.stringify({...version,sourceSha,previewSha:process.env.GITHUB_SHA,build:'Official LayaAir CLI 3.4.0 Web export, standalone game startup adapter'},null,2));
 fs.writeFileSync(root+'/.nojekyll','');
 const files={};
@@ -22,3 +22,4 @@ function walk(dir){for(const f of fs.readdirSync(dir,{withFileTypes:true})){cons
 walk(root);
 fs.writeFileSync(root+'/_build-evidence.json',JSON.stringify({sourceSha,engine:'LayaAir 3.4.0',officialBuild:true,browserSmokePassed:false,files},null,2));
 console.log('Sealed official Web build: '+Object.keys(files).length+' SHA256 entries.');
+

@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
 const {chromium}=require(process.cwd()+'/.qa/node_modules/playwright');
 const {PNG}=require(process.cwd()+'/.qa/node_modules/pngjs');
+const verifyFormal=require('./verify-formal.cjs');
 const base=process.env.JADE_URL||'http://127.0.0.1:8080/';
 const results=process.env.JADE_URL?'.qa/public-results':'.qa/results';
 async function hasText(page,text){return page.evaluate(text=>{
@@ -73,8 +74,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.4.1');assert.equal(provenance.sourceSha,'165d90ff6ca2e1ded1527a82047ca86aaacff655');
- await page.goto(base+'?debug&v=0.4.1',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.5.0');assert.equal(provenance.sourceSha,'5fb58b5831ba1d69643c26b24e617b0fe6330bce');
+ await page.goto(base+'?debug&v=0.5.0',{waitUntil:'networkidle'});
  await waitText(page,'开始解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -170,7 +171,8 @@ async function run(browser,name,viewport,touch,allLevels){
  await button(page,'回到玉盘',touch);assert.equal(await hasText(page,'玉盘小憩'),false);
  screenshots.push(await shot(page,name+'-home-progress-v04'));
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
- await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,render,audio,errors,passed:true};
+ const formal=await verifyFormal(page,context,name,touch,results);await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
+ await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,render,audio,formal,errors,passed:true};
 }
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
 (async()=>{
@@ -179,7 +181,8 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'165d90ff6ca2e1ded1527a82047ca86aaacff655',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'5fb58b5831ba1d69643c26b24e617b0fe6330bce',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
- console.log('Final V0.4.1 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'165d90ff6ca2e1ded1527a82047ca86aaacff655',passed:false,error:String(e)},null,2));process.exit(1)});
+ console.log('Final V0.5.0 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'5fb58b5831ba1d69643c26b24e617b0fe6330bce',passed:false,error:String(e)},null,2));process.exit(1)});
+
