@@ -43,20 +43,57 @@ async function checkJadePixels(page,viewport){
 
 async function run(browser,name,viewport,touch,allLevels){
  const context=await browser.newContext({viewport,hasTouch:touch,isMobile:touch,deviceScaleFactor:touch?2:1});
+ await context.addInitScript(()=>{
+  const stats=window.__audioQa={started:0,loops:0,hits:0,decoded:0,peak:0};
+  const nativeConnect=AudioNode.prototype.connect;
+  AudioNode.prototype.connect=function(target,...args){
+   const ctx=this.context;
+   if(target===ctx.destination){
+    if(!ctx.__qaMeter){
+     const meter=ctx.createAnalyser();meter.fftSize=256;ctx.__qaMeter=meter;
+     nativeConnect.call(meter,ctx.destination);
+     const samples=new Float32Array(256);
+     setInterval(()=>{meter.getFloatTimeDomainData(samples);for(const s of samples)stats.peak=Math.max(stats.peak,Math.abs(s))},10);
+    }
+    return nativeConnect.call(this,ctx.__qaMeter,...args);
+   }
+   return nativeConnect.call(this,target,...args);
+  };
+  const start=AudioBufferSourceNode.prototype.start;
+  AudioBufferSourceNode.prototype.start=function(...args){stats.started++;if(this.loop)stats.loops++;else stats.hits++;return start.apply(this,args)};
+  const decode=BaseAudioContext.prototype.decodeAudioData;
+  BaseAudioContext.prototype.decodeAudioData=function(...args){return decode.apply(this,args).then(b=>{stats.decoded++;return b})};
+ });
  const page=await context.newPage(),errors=[],screenshots=[];
  page.on('pageerror',e=>errors.push(e.message));
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.2.2');assert.equal(provenance.sourceSha,'a558eafbc5a60e8037f622dd8d3e413d6ed31f76');
- await page.goto(base+'?debug&v=0.2.2',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.3.0');assert.equal(provenance.sourceSha,'41a8bd210aef7a25f8874a168596acd31f495efd');
+ await page.goto(base+'?debug&v=0.3.0',{waitUntil:'networkidle'});
  await waitText(page,'入境解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
- screenshots.push(await shot(page,name+'-home-v02'));
+ screenshots.push(await shot(page,name+'-home-v03'));
  await button(page,'入境解镯',touch);await waitText(page,'开始转动 B');
  await button(page,'开始转动 B',touch);assert.equal(await hasText(page,'开始转动 B'),false);
- screenshots.push(await shot(page,name+'-level1-v02'));
+ screenshots.push(await shot(page,name+'-level1-v03'));
+ await page.waitForFunction(()=>window.__audioQa.decoded===2);
+ const pickA=await page.evaluate(()=>{
+  function find(n){if(!n.visible)return null;if(n.text==='A')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
+  const ring=find(Laya.stage).parent,p=ring.localToGlobal(new Laya.Point(0,0)),r=document.querySelector('canvas').getBoundingClientRect();
+  return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
+ });
+ if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
+ const startHits=await page.evaluate(()=>window.__audioQa.hits);
+ await button(page,'30° ↷',touch);
+ await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
+ screenshots.push(await shot(page,name+'-collision-v03'));
+ await button(page,'音效 开',touch);await page.waitForTimeout(120);
+ const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
+ await button(page,'30° ↷',touch);await page.waitForTimeout(150);
+ assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
+ await button(page,'音效 关',touch);
  const material=await checkJadePixels(page,viewport);
  console.log(name+' visible jade texture: '+JSON.stringify(material));
  const points=await page.evaluate(()=>{
@@ -72,11 +109,11 @@ async function run(browser,name,viewport,touch,allLevels){
  }else{await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();for(const p of points.slice(1)){await page.mouse.move(p.x,p.y);await page.waitForTimeout(20)}await page.mouse.up()}
  await waitText(page,'这一境，解开了',15000);
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).unlocked),1);
- screenshots.push(await shot(page,name+'-win-v02'));
+ screenshots.push(await shot(page,name+'-win-v03'));
  console.log(name+': real '+(touch?'touch':'mouse')+' drag cleared level 1.');
  if(allLevels)for(let i=1;i<10;i++){
   await button(page,'进入第 '+(i+1)+' 境',touch);await waitText(page,'演示');
-  if(i===4||i===9)screenshots.push(await shot(page,name+'-level'+(i+1)+'-v02'));
+  if(i===3||i===4||i===9)screenshots.push(await shot(page,name+'-level'+(i+1)+'-v03'));
   await button(page,'演示',touch);await waitText(page,i===9?'十境皆通':'这一境，解开了');
   const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
   assert.ok(save.records[i]);assert.equal(save.unlocked,Math.min(9,i+1));
@@ -84,13 +121,17 @@ async function run(browser,name,viewport,touch,allLevels){
  }
  await button(page,'再解一次',touch);await waitText(page,'演示');
  assert.equal(await hasText(page,'这一境，解开了'),false);assert.equal(await hasText(page,'十境皆通'),false);
- screenshots.push(await shot(page,name+'-restart-v02'));
+ screenshots.push(await shot(page,name+'-restart-v03'));
  await button(page,'重开',touch);await waitText(page,'演示');
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a[a.length-1]})}}requestAnimationFrame(step)}));
  fs.writeFileSync(results+'/'+name+'-frames.json',JSON.stringify(frames)); console.log(name+' frame times: '+JSON.stringify(frames));
  assert.ok(frames.p95<100,'CI rendering p95 under 100 ms');
+ const audio=await page.evaluate(()=>window.__audioQa);
+ assert.ok(audio.loops>=1,'Actual rotation starts sampled friction');
+ assert.ok(audio.hits>=2,'Collision and clear emit sampled material sounds');
+ assert.ok(audio.peak>.001,'Audio graph delivers nonzero sound signal');
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
- await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,errors,passed:true};
+ await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,audio,errors,passed:true};
 }
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
 (async()=>{
@@ -99,7 +140,7 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'a558eafbc5a60e8037f622dd8d3e413d6ed31f76',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'41a8bd210aef7a25f8874a168596acd31f495efd',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final V0.2 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
 })().catch(e=>{console.error(e);process.exit(1)});
