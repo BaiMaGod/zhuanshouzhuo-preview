@@ -1,6 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
 const route=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[10];
-function findCode(){return ''}
 async function nodePoint(page,label,ringAngle=null){return page.evaluate(({label,ringAngle})=>{
  function find(n){if(!n.visible)return null;if((n.label?.text||n.text)===label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
  const n=find(Laya.stage);if(!n)throw Error('Missing '+label);const target=ringAngle===null?n:n.parent;
@@ -69,6 +68,7 @@ module.exports=async function(page,context,name,touch,results){
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a.at(-1)})}}requestAnimationFrame(step)}));assert.ok(frames.p95<100,'54-ring rendering p95 under 100ms');
  await turn(page,session,route[0],touch);assert.equal(Object.values(await snapshot(page)).filter(r=>r.visible).length,53);
  await button(page,'撤销',touch);assert.equal(Object.values(await snapshot(page)).filter(r=>r.visible).length,54);await turn(page,session,route[0],touch);
+ if(process.env.JADE_PUBLIC_SMOKE==='true'){await button(page,'重开',touch);assert.equal(Object.values(await snapshot(page)).filter(r=>r.visible).length,54);screenshots.push(await shot(page,results,name+'-formal-restart'));await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'挑战九宫锁玉阵');return {rings:54,rods:62,actions:1,fullRoute:false,frames,screenshots,pinch:touch,wheel:!touch,passed:true};}
  for(let i=1;i<route.length;i++){await turn(page,session,route[i],touch);if(i===6||i===34)screenshots.push(await shot(page,results,name+'-formal-progress-'+i));if(i%7===6)console.log(name+' formal: completed chamber '+route[i].id[0])}
  await waitText(page,'九宫锁玉阵 · 全部解开');const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
  assert.ok(save.records[10]);assert.equal(save.records[10].steps,63);screenshots.push(await shot(page,results,name+'-formal-win'));

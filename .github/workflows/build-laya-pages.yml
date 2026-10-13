@@ -1,110 +1,165 @@
 name: Build, verify and deploy jade game
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
     inputs:
       source_ref:
-        description: Formal source commit or branch
+        description: Formal source commit
         required: true
-        default: '5fb58b5831ba1d69643c26b24e617b0fe6330bce'
-
+        default: 'bed6dd4db689f8b5b2e7aa598dee6ec982338632'
 env:
-  PUBLISH_PREVIEW: 'true'
-
+  JADE_SOURCE_SHA: 'bed6dd4db689f8b5b2e7aa598dee6ec982338632'
 permissions:
   contents: read
   pages: write
   id-token: write
-
 concurrency:
   group: jade-pages
   cancel-in-progress: true
-
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    timeout-minutes: 15
     steps:
-      - name: Checkout preview deployment configuration
-        uses: actions/checkout@v4
-      - name: Checkout tested formal source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '5fb58b5831ba1d69643c26b24e617b0fe6330bce' }}
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install build dependencies
-        working-directory: source
-        run: npm install --no-audit --no-fund
-      - name: Compile and run 34 rule, controller and material checks
+      - name: Install, typecheck and run 34 checks
         working-directory: source
         run: |
           set -euo pipefail
+          npm install --no-audit --no-fund
           npm run typecheck
           npm test
-      - name: Build official LayaAir 3.4 Web export and seal production payload
+      - name: Official LayaAir 3.4 Web build
         run: bash .github/scripts/build-official.sh
-      - name: Install browser verification dependencies
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+          retention-days: 7
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [desktop, mobile, narrow]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
+          path: source
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser dependencies
         run: |
-          set -euo pipefail
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
           .qa/node_modules/.bin/playwright install --with-deps chromium
-      - name: Verify real Laya rendering, mouse and mobile touch
+      - name: Real input, full formal route and teaching regression
+        env:
+          JADE_PROFILE: ${{ matrix.profile }}
         run: |
           set -euo pipefail
           python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
           mkdir -p .qa/results
           node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
-      - name: Retain verified Web build
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jade-browser-${{ matrix.profile }}
+          path: .qa/results
+          retention-days: 7
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-browser-desktop
+          path: .qa/desktop
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-browser-mobile
+          path: .qa/mobile
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-browser-narrow
+          path: .qa/narrow
+      - name: Fail-closed evidence and payload verification
+        run: node .github/scripts/accept-smoke.cjs
+      - uses: actions/upload-artifact@v4
         with:
           name: jade-verified-web-build
           path: source/dist
           retention-days: 7
-      - name: Upload browser verification evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: jade-browser-verification
-          path: .qa/results
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Configure Pages
-        if: env.PUBLISH_PREVIEW == 'true'
-        uses: actions/configure-pages@v5
-      - name: Upload game-only Pages artifact
-        if: env.PUBLISH_PREVIEW == 'true'
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: source/dist
-      - name: Publish preview
-        if: env.PUBLISH_PREVIEW == 'true'
+      - uses: actions/deploy-pages@v4
         id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Verify actual public Pages release
-        if: env.PUBLISH_PREVIEW == 'true'
+  public-smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [desktop, mobile, narrow]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser dependencies
+        run: |
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
+          .qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify actual public release, zoom and touch rotation
         env:
+          JADE_PROFILE: ${{ matrix.profile }}
+          JADE_PUBLIC_SMOKE: 'true'
           JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
         run: |
           set -euo pipefail
-          mkdir -p .qa/local-verification
-          cp -R .qa/results/. .qa/local-verification/
           mkdir -p .qa/public-results
           node .github/scripts/verify-production.cjs 2>&1 | tee .qa/public-results/browser-checks.log
-      - name: Retain public browser evidence
-        if: always() && env.PUBLISH_PREVIEW == 'true'
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: jade-public-verification-v050
+          name: jade-public-${{ matrix.profile }}
           path: .qa/public-results
           retention-days: 7
-
