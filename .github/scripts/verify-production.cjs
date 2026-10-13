@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require(
 const {chromium}=require(process.cwd()+'/.qa/node_modules/playwright');
 const {PNG}=require(process.cwd()+'/.qa/node_modules/pngjs');
 const base=process.env.JADE_URL||'http://127.0.0.1:8080/';
-const results='.qa/results';
+const results=process.env.JADE_URL?'.qa/public-results':'.qa/results';
 async function hasText(page,text){return page.evaluate(text=>{
  function find(n){if(!n.visible)return false;if(n.text===text)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}
  return !!window.Laya?.stage&&find(Laya.stage);
@@ -70,8 +70,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.3.1');assert.equal(provenance.sourceSha,'615d26d16e34383fc99172aa1d5ffc680c517ce5');
- await page.goto(base+'?debug&v=0.3.1',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.3.2');assert.equal(provenance.sourceSha,'96ecdb68e0e3693672ebca4941c51d6810b38e16');
+ await page.goto(base+'?debug&v=0.3.2',{waitUntil:'networkidle'});
  await waitText(page,'入境解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v03'));
@@ -135,12 +135,12 @@ async function run(browser,name,viewport,touch,allLevels){
 }
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
 (async()=>{
- fs.mkdirSync(results,{recursive:true});
+ fs.mkdirSync(results,{recursive:true});fs.rmSync(results+'/report.json',{force:true});
  const browser=await chromium.launch({headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-dev-shm-usage']});
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'615d26d16e34383fc99172aa1d5ffc680c517ce5',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'96ecdb68e0e3693672ebca4941c51d6810b38e16',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
- console.log('Final V0.2 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
-})().catch(e=>{console.error(e);process.exit(1)});
+ console.log('Final V0.3.2 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'96ecdb68e0e3693672ebca4941c51d6810b38e16',passed:false,error:String(e)},null,2));process.exit(1)});

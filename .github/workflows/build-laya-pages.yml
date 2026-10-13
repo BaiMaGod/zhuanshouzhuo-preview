@@ -8,7 +8,7 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '615d26d16e34383fc99172aa1d5ffc680c517ce5'
+        default: '96ecdb68e0e3693672ebca4941c51d6810b38e16'
 
 permissions:
   contents: read
@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '615d26d16e34383fc99172aa1d5ffc680c517ce5' }}
+          ref: ${{ inputs.source_ref || '96ecdb68e0e3693672ebca4941c51d6810b38e16' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -45,16 +45,19 @@ jobs:
       - name: Compile and run 27 rule, controller and material checks
         working-directory: source
         run: |
+          set -euo pipefail
           npm run typecheck
           npm test
       - name: Build official LayaAir 3.4 Web export and seal production payload
         run: bash .github/scripts/build-official.sh
       - name: Install browser verification dependencies
         run: |
+          set -euo pipefail
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
           .qa/node_modules/.bin/playwright install --with-deps chromium
       - name: Verify real Laya rendering, mouse and mobile touch
         run: |
+          set -euo pipefail
           python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
           mkdir -p .qa/results
           node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
@@ -85,14 +88,15 @@ jobs:
         env:
           JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
         run: |
+          set -euo pipefail
           mkdir -p .qa/local-verification
           cp -R .qa/results/. .qa/local-verification/
-          mkdir -p .qa/results
-          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
+          mkdir -p .qa/public-results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/public-results/browser-checks.log
       - name: Retain public browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jade-public-verification-v02
-          path: .qa/results
+          name: jade-public-verification-v032
+          path: .qa/public-results
           retention-days: 7
