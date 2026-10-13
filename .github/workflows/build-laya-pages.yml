@@ -11,7 +11,7 @@ on:
         default: '4517fc3d012aef7d6b57c41c392c4958c01ac6f1'
 
 env:
-  PUBLISH_PREVIEW: 'false'
+  PUBLISH_PREVIEW: 'true'
 
 permissions:
   contents: read
