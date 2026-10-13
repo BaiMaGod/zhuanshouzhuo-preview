@@ -6,7 +6,7 @@ async function nodePoint(page,label,ringAngle=null){return page.evaluate(({label
  const local=ringAngle===null?new Laya.Point(target.width/2,target.height/2):new Laya.Point(40*Math.cos(ringAngle*Math.PI/180),40*Math.sin(ringAngle*Math.PI/180));
  const p=target.localToGlobal(local),r=document.querySelector('canvas').getBoundingClientRect();return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
  },{label,ringAngle})}
-async function button(page,label,touch){const p=await nodePoint(page,label);if(touch)await page.touchscreen.tap(p.x,p.y);else await page.mouse.click(p.x,p.y)}
+async function button(page,label,touch){const p=await nodePoint(page,label);if(touch)await page.touchscreen.tap(p.x,p.y);else await page.mouse.click(p.x,p.y);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
 async function waitText(page,label){await page.waitForFunction(label=>{function find(n){if(!n.visible)return false;if((n.label?.text||n.text)===label)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}return find(Laya.stage)},label,{timeout:15000})}
 async function snapshot(page){return page.evaluate(()=>{
  const rings={};function scan(n){if(n.text&&/^[1-9][GABCDE]$/.test(n.text))rings[n.text]={angle:n.parent.getChildAt(2).rotation};for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return rings;
@@ -41,9 +41,11 @@ async function focus(page,session,id,touch){
  const fits=s=>s.p.x-s.radius>r.x+3&&s.p.x+s.radius<r.x+r.w-3&&s.p.y-s.radius>r.y+3&&s.p.y+s.radius<r.y+r.h-3;
  if(fits(state))return state;
  await button(page,'移动棋盘',touch);
+ await waitText(page,'旋转手镯');
  for(let i=0;i<24&&!fits(state);i++){
   const mid={x:r.x+r.w/2,y:r.y+r.h/2},dx=Math.max(-r.w*.3,Math.min(r.w*.3,mid.x-state.p.x)),dy=Math.max(-r.h*.3,Math.min(r.h*.3,mid.y-state.p.y));
-  const points=Array.from({length:9},(_,k)=>({x:mid.x+dx*k/8,y:mid.y+dy*k/8}));await drag(page,session,points,touch);state=await view(page,id);
+  const points=Array.from({length:9},(_,k)=>({x:mid.x+dx*k/8,y:mid.y+dy*k/8}));await drag(page,session,points,touch);await page.waitForTimeout(34);state=await view(page,id);
+  if(i===0||i===23)console.log('pan '+id+' '+i+' '+JSON.stringify(await page.evaluate(()=>{const g=Laya.timer._handlers?.find(h=>h.caller?.board&&h.caller?.pointers)?.caller;return g?{panMode:g.panMode,animating:g.board.animating,ghosts:g.board.ghosts.map(x=>({id:x.r.id,age:performance.now()-x.start})),pointers:[...g.pointers.keys()],gesture:g.viewGesture,screen:g.board.screen,frame:Laya.timer.currFrame}:null}))+' view '+JSON.stringify(state));
  }
  await button(page,'旋转手镯',touch);assert.ok(fits(state),'Camera can expose whole ring '+id+' '+JSON.stringify(state));return state;
 }
