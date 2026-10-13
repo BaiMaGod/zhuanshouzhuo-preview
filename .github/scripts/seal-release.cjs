@@ -11,7 +11,7 @@ html=html.replace('<head>','<head><link rel="icon" href="data:,">');
 fs.writeFileSync(root+'/index.html',html);
 const sourceSha=cp.execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const version=JSON.parse(fs.readFileSync(root+'/version.json'));
-if(version.version!=='0.3.4'||sourceSha!=='0d555bc4800c15b9941057ff8f5bf3ce1c172064')throw Error('Wrong game revision');
+if(version.version!=='0.4.0'||sourceSha!=='4517fc3d012aef7d6b57c41c392c4958c01ac6f1')throw Error('Wrong game revision');
 fs.writeFileSync(root+'/release.json',JSON.stringify({...version,sourceSha,previewSha:process.env.GITHUB_SHA,build:'Official LayaAir CLI 3.4.0 Web export, standalone game startup adapter'},null,2));
 fs.writeFileSync(root+'/.nojekyll','');
 const files={};

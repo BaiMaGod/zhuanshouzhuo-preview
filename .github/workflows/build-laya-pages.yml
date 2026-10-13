@@ -8,7 +8,10 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '0d555bc4800c15b9941057ff8f5bf3ce1c172064'
+        default: '4517fc3d012aef7d6b57c41c392c4958c01ac6f1'
+
+env:
+  PUBLISH_PREVIEW: 'false'
 
 permissions:
   contents: read
@@ -33,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '0d555bc4800c15b9941057ff8f5bf3ce1c172064' }}
+          ref: ${{ inputs.source_ref || '4517fc3d012aef7d6b57c41c392c4958c01ac6f1' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -42,7 +45,7 @@ jobs:
       - name: Install build dependencies
         working-directory: source
         run: npm install --no-audit --no-fund
-      - name: Compile and run 29 rule, controller and material checks
+      - name: Compile and run 31 rule, controller and material checks
         working-directory: source
         run: |
           set -euo pipefail
@@ -76,15 +79,19 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       - name: Configure Pages
+        if: env.PUBLISH_PREVIEW == 'true'
         uses: actions/configure-pages@v5
       - name: Upload game-only Pages artifact
+        if: env.PUBLISH_PREVIEW == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: source/dist
       - name: Publish preview
+        if: env.PUBLISH_PREVIEW == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
       - name: Verify actual public Pages release
+        if: env.PUBLISH_PREVIEW == 'true'
         env:
           JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
         run: |
@@ -94,9 +101,9 @@ jobs:
           mkdir -p .qa/public-results
           node .github/scripts/verify-production.cjs 2>&1 | tee .qa/public-results/browser-checks.log
       - name: Retain public browser evidence
-        if: always()
+        if: always() && env.PUBLISH_PREVIEW == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: jade-public-verification-v034
+          name: jade-public-verification-v040
           path: .qa/public-results
           retention-days: 7
