@@ -12,6 +12,19 @@ async function snapshot(page){return page.evaluate(()=>{
  const rings={};function scan(n){if(n.text&&/^[1-9][GABCDE]$/.test(n.text))rings[n.text]={angle:n.parent.getChildAt(2).rotation};for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return rings;
  })}
 async function activeCount(page){return page.evaluate(()=>{let count=null;function scan(n){if(n.text&&/^\d+ 镯待解/.test(n.text))count=Number(n.text.match(/^\d+/)[0]);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);if(count===null)throw Error('Missing actual HUD count');return count;});}
+async function backdropRegistration(page){return page.evaluate(()=>{
+ function find(n,predicate){if(predicate(n))return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i),predicate);if(b)return b}return null}
+ const ring=find(Laya.stage,n=>n.text==='1G').parent,root=ring.parent.parent,bg=find(Laya.stage,n=>n.name==='board-backdrop');if(!bg)throw Error('Missing board artwork camera');
+ const basis=n=>[[0,0],[1,0],[0,1]].map(([x,y])=>{const p=n.localToGlobal(new Laya.Point(x,y));return {x:p.x,y:p.y}});
+ const ringPoint=ring.localToGlobal(new Laya.Point(0,0)),artPoint=bg.localToGlobal(new Laya.Point(ring.x+ring.parent.x,ring.y+ring.parent.y));
+ const images=['board-garden','board-tray'].map(name=>{const n=find(bg,n=>n.name===name);if(!n||n.parent!==bg)throw Error('Unregistered '+name);return {name,x:n.x,y:n.y,scale:n.scaleX,rotation:n.rotation}});
+ return {ringBasis:basis(root),artBasis:basis(bg),ringPoint:{x:ringPoint.x,y:ringPoint.y},artPoint:{x:artPoint.x,y:artPoint.y},images};
+ })}
+function assertRegistered(r,initial){
+ for(let i=0;i<3;i++)for(const k of ['x','y'])assert.ok(Math.abs(r.ringBasis[i][k]-r.artBasis[i][k])<1e-4,'Artwork shares the actual ring camera matrix');
+ for(const k of ['x','y'])assert.ok(Math.abs(r.ringPoint[k]-r.artPoint[k])<1e-4,'Ring stays at its registered background position');
+ if(initial)assert.deepEqual(r.images,initial.images,'Zoom, pan and undo cannot move artwork inside the world');
+}
 async function view(page,id){return page.evaluate(id=>{
  function find(n){if(n.text===id)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
  const label=find(Laya.stage),ring=label.parent,root=ring.parent.parent,viewport=root.parent,r=document.querySelector('canvas').getBoundingClientRect();
@@ -45,6 +58,7 @@ module.exports=async function(page,context,name,touch,results){
  await button(page,'挑战九宫锁玉阵',touch);await waitText(page,'超级困难 · 九宫锁玉阵');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
  let before=await snapshot(page);assert.equal(Object.keys(before).length,54);assert.equal(await activeCount(page),54);
+ const artwork=await backdropRegistration(page);assertRegistered(artwork);
  const texts=await page.evaluate(()=>{const out=[];function walk(n){if(!n.visible)return;if(n.text)out.push(n.text);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return out});
  for(const label of ['演示','提示','↶ 微调','微调 ↷','↶ 30°','30° ↷'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
  screenshots.push(await shot(page,results,name+'-formal-overview'));
@@ -57,9 +71,11 @@ module.exports=async function(page,context,name,touch,results){
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  }else{await page.mouse.move(mid.x,mid.y);await page.mouse.wheel(0,-600);await page.waitForTimeout(150)}
  assert.ok((await view(page,'1G')).zoom>camera.zoom*1.8);assert.deepEqual(await snapshot(page),before,'Zoom/remaining finger must not rotate rings');assert.equal(await activeCount(page),54,'Zoom cannot remove rings');
+ assertRegistered(await backdropRegistration(page),artwork);
  await button(page,'全盘',touch);assert.ok(Math.abs((await view(page,'1G')).zoom-camera.zoom)<1e-7);
  await button(page,'移动棋盘',touch);for(let i=0;i<5;i++)await button(page,'+',touch);
  await drag(page,session,[mid,{x:mid.x+40,y:mid.y+25}],touch);assert.deepEqual(await snapshot(page),before,'Pan cannot mutate rule state');
+ assertRegistered(await backdropRegistration(page),artwork);
  if(touch){await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...mid,id:13}]});await session.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]})}
  await button(page,'旋转手镯',touch);
  screenshots.push(await shot(page,results,name+'-formal-zoom'));
@@ -70,6 +86,7 @@ module.exports=async function(page,context,name,touch,results){
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a.at(-1)})}}requestAnimationFrame(step)}));fs.writeFileSync(results+'/'+name+'-formal-frames.json',JSON.stringify(frames));console.log(name+' 54-ring frame times: '+JSON.stringify(frames));assert.ok(frames.p95<100,'54-ring rendering p95 under 100ms: '+JSON.stringify(frames));
  await turn(page,session,route[0],touch);assert.equal(await activeCount(page),53);
  const undoView=await view(page,'9E');await button(page,'撤销',touch);assert.equal(await activeCount(page),54);assert.ok(Math.abs((await view(page,'9E')).zoom-undoView.zoom)<1e-7,'Undo preserves camera zoom');await turn(page,session,route[0],touch);
+ assertRegistered(await backdropRegistration(page),artwork);
  if(process.env.JADE_PUBLIC_SMOKE==='true'){await button(page,'重开',touch);assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'挑战九宫锁玉阵');return {rings:54,rods:62,actions:1,fullRoute:false,frames,screenshots,pinch:touch,wheel:!touch,passed:true};}
  for(let i=1;i<route.length;i++){await turn(page,session,route[i],touch);if(i===6||i===34)screenshots.push(await shot(page,results,name+'-formal-progress-'+i));if(i%7===6)console.log(name+' formal: completed chamber '+route[i].id[0])}
  await waitText(page,'九宫锁玉阵 · 全部解开');const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));

@@ -7,9 +7,9 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: 'e5a511c75c13f81531449e8ef55c45c96b42fcd2'
+        default: 'c3f0354878fe18b5cae22e849fa5ad989b78bc4d'
 env:
-  JADE_SOURCE_SHA: 'e5a511c75c13f81531449e8ef55c45c96b42fcd2'
+  JADE_SOURCE_SHA: 'c3f0354878fe18b5cae22e849fa5ad989b78bc4d'
 permissions:
   contents: read
   pages: write
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install, typecheck and run 35 checks
+      - name: Install, typecheck and run 36 checks
         working-directory: source
         run: |
           set -euo pipefail
