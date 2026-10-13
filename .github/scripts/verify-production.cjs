@@ -44,7 +44,7 @@ async function checkJadePixels(page,viewport){
 async function run(browser,name,viewport,touch,allLevels){
  const context=await browser.newContext({viewport,hasTouch:touch,isMobile:touch,deviceScaleFactor:touch?2:1});
  await context.addInitScript(()=>{
-  const stats=window.__audioQa={started:0,loops:0,hits:0,decoded:0,peak:0};
+  const stats=window.__audioQa={started:0,loops:0,activeLoops:0,hits:0,decoded:0,peak:0,currentPeak:0};
   const nativeConnect=AudioNode.prototype.connect;
   AudioNode.prototype.connect=function(target,...args){
    const ctx=this.context;
@@ -53,14 +53,17 @@ async function run(browser,name,viewport,touch,allLevels){
      const meter=ctx.createAnalyser();meter.fftSize=256;ctx.__qaMeter=meter;
      nativeConnect.call(meter,ctx.destination);
      const samples=new Float32Array(256);
-     setInterval(()=>{meter.getFloatTimeDomainData(samples);for(const s of samples)stats.peak=Math.max(stats.peak,Math.abs(s))},10);
+     setInterval(()=>{meter.getFloatTimeDomainData(samples);stats.currentPeak=0;for(const s of samples){stats.currentPeak=Math.max(stats.currentPeak,Math.abs(s));stats.peak=Math.max(stats.peak,Math.abs(s))}},10);
     }
     return nativeConnect.call(this,ctx.__qaMeter,...args);
    }
    return nativeConnect.call(this,target,...args);
   };
   const start=AudioBufferSourceNode.prototype.start;
-  AudioBufferSourceNode.prototype.start=function(...args){stats.started++;if(this.loop)stats.loops++;else stats.hits++;return start.apply(this,args)};
+  AudioBufferSourceNode.prototype.start=function(...args){
+   stats.started++;if(this.loop){stats.loops++;stats.activeLoops++;this.addEventListener('ended',()=>stats.activeLoops--,{once:true})}else stats.hits++;
+   return start.apply(this,args);
+  };
   const decode=BaseAudioContext.prototype.decodeAudioData;
   BaseAudioContext.prototype.decodeAudioData=function(...args){return decode.apply(this,args).then(b=>{stats.decoded++;return b})};
  });
@@ -70,8 +73,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.3.3');assert.equal(provenance.sourceSha,'eeeb2acdcefb1aee8b309989d5faedbd9fc59402');
- await page.goto(base+'?debug&v=0.3.3',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.3.4');assert.equal(provenance.sourceSha,'0d555bc4800c15b9941057ff8f5bf3ce1c172064');
+ await page.goto(base+'?debug&v=0.3.4',{waitUntil:'networkidle'});
  await waitText(page,'入境解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v03'));
@@ -90,6 +93,8 @@ async function run(browser,name,viewport,touch,allLevels){
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
  screenshots.push(await shot(page,name+'-collision-v03'));
  await button(page,'音效 开',touch);await page.waitForTimeout(120);
+ await page.waitForFunction(()=>window.__audioQa.currentPeak<.0001);
+ assert.equal(await page.evaluate(()=>window.__audioQa.activeLoops),0,'Mute releases friction voices');
  const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
  await button(page,'30° ↷',touch);await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
@@ -108,6 +113,7 @@ async function run(browser,name,viewport,touch,allLevels){
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  }else{await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();for(const p of points.slice(1)){await page.mouse.move(p.x,p.y);await page.waitForTimeout(20)}await page.mouse.up()}
  await waitText(page,'这一境，解开了',15000);
+ await page.waitForFunction(()=>window.__audioQa.activeLoops===0,null,{timeout:3000});
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).unlocked),1);
  screenshots.push(await shot(page,name+'-win-v03'));
  console.log(name+': real '+(touch?'touch':'mouse')+' drag cleared level 1.');
@@ -141,7 +147,7 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'eeeb2acdcefb1aee8b309989d5faedbd9fc59402',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'0d555bc4800c15b9941057ff8f5bf3ce1c172064',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
- console.log('Final V0.3.3 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'eeeb2acdcefb1aee8b309989d5faedbd9fc59402',passed:false,error:String(e)},null,2));process.exit(1)});
+ console.log('Final V0.3.4 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'0d555bc4800c15b9941057ff8f5bf3ce1c172064',passed:false,error:String(e)},null,2));process.exit(1)});
