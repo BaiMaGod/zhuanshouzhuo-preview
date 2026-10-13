@@ -8,7 +8,7 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '4517fc3d012aef7d6b57c41c392c4958c01ac6f1'
+        default: '165d90ff6ca2e1ded1527a82047ca86aaacff655'
 
 env:
   PUBLISH_PREVIEW: 'true'
@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '4517fc3d012aef7d6b57c41c392c4958c01ac6f1' }}
+          ref: ${{ inputs.source_ref || '165d90ff6ca2e1ded1527a82047ca86aaacff655' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
