@@ -45,6 +45,7 @@ jobs:
         with:
           name: jade-candidate-web
           path: source/dist
+          include-hidden-files: true
           retention-days: 7
   verify:
     needs: build
@@ -118,6 +119,7 @@ jobs:
         with:
           name: jade-verified-web-build
           path: source/dist
+          include-hidden-files: true
           retention-days: 7
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
