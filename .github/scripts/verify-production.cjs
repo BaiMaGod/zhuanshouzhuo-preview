@@ -70,8 +70,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.3.0');assert.equal(provenance.sourceSha,'41a8bd210aef7a25f8874a168596acd31f495efd');
- await page.goto(base+'?debug&v=0.3.0',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.3.1');assert.equal(provenance.sourceSha,'615d26d16e34383fc99172aa1d5ffc680c517ce5');
+ await page.goto(base+'?debug&v=0.3.1',{waitUntil:'networkidle'});
  await waitText(page,'入境解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v03'));
@@ -140,7 +140,7 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'41a8bd210aef7a25f8874a168596acd31f495efd',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'615d26d16e34383fc99172aa1d5ffc680c517ce5',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final V0.2 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
 })().catch(e=>{console.error(e);process.exit(1)});

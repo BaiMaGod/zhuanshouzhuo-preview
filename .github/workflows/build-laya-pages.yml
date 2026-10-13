@@ -8,7 +8,7 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '41a8bd210aef7a25f8874a168596acd31f495efd'
+        default: '615d26d16e34383fc99172aa1d5ffc680c517ce5'
 
 permissions:
   contents: read
@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '41a8bd210aef7a25f8874a168596acd31f495efd' }}
+          ref: ${{ inputs.source_ref || '615d26d16e34383fc99172aa1d5ffc680c517ce5' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -56,7 +56,8 @@ jobs:
       - name: Verify real Laya rendering, mouse and mobile touch
         run: |
           python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
-          node .github/scripts/verify-production.cjs
+          mkdir -p .qa/results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
       - name: Retain verified Web build
         uses: actions/upload-artifact@v4
         with:
@@ -86,7 +87,8 @@ jobs:
         run: |
           mkdir -p .qa/local-verification
           cp -R .qa/results/. .qa/local-verification/
-          node .github/scripts/verify-production.cjs
+          mkdir -p .qa/results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
       - name: Retain public browser evidence
         if: always()
         uses: actions/upload-artifact@v4
