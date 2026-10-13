@@ -70,8 +70,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.3.2');assert.equal(provenance.sourceSha,'96ecdb68e0e3693672ebca4941c51d6810b38e16');
- await page.goto(base+'?debug&v=0.3.2',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.3.3');assert.equal(provenance.sourceSha,'eeeb2acdcefb1aee8b309989d5faedbd9fc59402');
+ await page.goto(base+'?debug&v=0.3.3',{waitUntil:'networkidle'});
  await waitText(page,'入境解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v03'));
@@ -126,12 +126,13 @@ async function run(browser,name,viewport,touch,allLevels){
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a[a.length-1]})}}requestAnimationFrame(step)}));
  fs.writeFileSync(results+'/'+name+'-frames.json',JSON.stringify(frames)); console.log(name+' frame times: '+JSON.stringify(frames));
  assert.ok(frames.p95<100,'CI rendering p95 under 100 ms');
+ const render=await page.evaluate(()=>{const c=document.querySelector('canvas'),r=c.getBoundingClientRect();return{canvas:{width:c.width,height:c.height},stage:{width:Laya.stage.width,height:Laya.stage.height},css:{width:r.width,height:r.height},devicePixelRatio:devicePixelRatio}});
  const audio=await page.evaluate(()=>window.__audioQa);
  assert.ok(audio.loops>=1,'Actual rotation starts sampled friction');
  assert.ok(audio.hits>=2,'Collision and clear emit sampled material sounds');
  assert.ok(audio.peak>.001,'Audio graph delivers nonzero sound signal');
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
- await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,audio,errors,passed:true};
+ await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,render,audio,errors,passed:true};
 }
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
 (async()=>{
@@ -140,7 +141,7 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{profiles.push(await run(browser,'desktop',{width:720,height:1280},false,false));profiles.push(await run(browser,'mobile',{width:390,height:844},true,true));profiles.push(await run(browser,'narrow',{width:375,height:667},true,false));}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'96ecdb68e0e3693672ebca4941c51d6810b38e16',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'eeeb2acdcefb1aee8b309989d5faedbd9fc59402',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
- console.log('Final V0.3.2 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'96ecdb68e0e3693672ebca4941c51d6810b38e16',passed:false,error:String(e)},null,2));process.exit(1)});
+ console.log('Final V0.3.3 Web package passed desktop, two mobile viewports, real input, 10 levels and restart.');
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'eeeb2acdcefb1aee8b309989d5faedbd9fc59402',passed:false,error:String(e)},null,2));process.exit(1)});

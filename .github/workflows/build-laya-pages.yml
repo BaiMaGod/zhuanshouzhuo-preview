@@ -8,7 +8,7 @@ on:
       source_ref:
         description: Formal source commit or branch
         required: true
-        default: '96ecdb68e0e3693672ebca4941c51d6810b38e16'
+        default: 'eeeb2acdcefb1aee8b309989d5faedbd9fc59402'
 
 permissions:
   contents: read
@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: ${{ inputs.source_ref || '96ecdb68e0e3693672ebca4941c51d6810b38e16' }}
+          ref: ${{ inputs.source_ref || 'eeeb2acdcefb1aee8b309989d5faedbd9fc59402' }}
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -97,6 +97,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: jade-public-verification-v032
+          name: jade-public-verification-v033
           path: .qa/public-results
           retention-days: 7
