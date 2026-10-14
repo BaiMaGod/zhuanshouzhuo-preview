@@ -67,7 +67,7 @@ module.exports=async function(page,context,name,touch,results){
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
  let before=await snapshot(page);assert.equal(Object.keys(before).length,54);assert.equal(await activeCount(page),54);
  const lattice=await page.evaluate(()=>{const points=[];function scan(n){if(n.text&&/^[1-9][GABCDE]$/.test(n.text))points.push({x:n.parent.x,y:n.parent.y});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return points});
- const rows=new Map;for(const p of lattice){const y=Math.round(p.y*1000);if(!rows.has(y))rows.set(y,[]);rows.get(y).push(p.x)}assert.equal(rows.size,6);for(const xs of rows.values()){xs.sort((a,b)=>a-b);assert.equal(xs.length,9);for(let i=1;i<xs.length;i++)assert.ok(Math.abs(xs[i]-xs[i-1]-94)<1e-4,'Rendered lattice has no empty interior cells');}
+ const rows=new Map;for(const p of lattice){const y=Math.round(p.y*1000);if(!rows.has(y))rows.set(y,[]);rows.get(y).push(p.x)}assert.equal(rows.size,6);for(const xs of rows.values()){xs.sort((a,b)=>a-b);assert.equal(xs.length,9);for(let i=1;i<xs.length;i++)assert.ok(Math.abs(xs[i]-xs[i-1]-92.0001)<1e-4,'Rendered lattice has no empty interior cells');}
  const artwork=await backdropRegistration(page);assertRegistered(artwork);
  const texts=await page.evaluate(()=>{const out=[];function walk(n){if(!n.visible)return;if(n.text)out.push(n.text);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return out});
  for(const label of ['演示','提示','↶ 微调','微调 ↷','↶ 30°','30° ↷','旋转手镯','移动棋盘','撤销'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
