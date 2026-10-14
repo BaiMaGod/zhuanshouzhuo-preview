@@ -1,17 +1,17 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
 const route=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[10];
 async function nodePoint(page,label,ringAngle=null){return page.evaluate(({label,ringAngle})=>{
- function find(n){if(!n.visible)return null;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
+ function find(n){if(!n.visible)return null;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label||n.name==='button:'+({'重开':'restart','回到首页':'home','音效':'sound','玩法':'help'}[label]||'NONE'))return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
  const n=find(Laya.stage);if(!n)throw Error('Missing '+label);const target=ringAngle===null?n:n.parent;
  const local=ringAngle===null?new Laya.Point(target.width/2,target.height/2):new Laya.Point(40*Math.cos(ringAngle*Math.PI/180),40*Math.sin(ringAngle*Math.PI/180));
  const p=target.localToGlobal(local),r=document.querySelector('canvas').getBoundingClientRect();return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
  },{label,ringAngle})}
 async function button(page,label,touch){const p=await nodePoint(page,label);if(touch)await page.touchscreen.tap(p.x,p.y);else await page.mouse.click(p.x,p.y);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
-async function waitText(page,label){await page.waitForFunction(label=>{function find(n){if(!n.visible)return false;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}return find(Laya.stage)},label,{timeout:15000})}
+async function waitText(page,label){await page.waitForFunction(label=>{function find(n){if(!n.visible)return false;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label||n.name==='button:'+({'重开':'restart','回到首页':'home','音效':'sound','玩法':'help'}[label]||'NONE'))return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}return find(Laya.stage)},label,{timeout:15000})}
 async function snapshot(page){return page.evaluate(()=>{
  const rings={};function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))rings[n.name.slice(8)]={angle:n.parent.getChildAt(2).rotation};for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return rings;
  })}
-async function activeCount(page){return page.evaluate(()=>{let count=null;function scan(n){if(n.text&&/^\d+ 镯待解/.test(n.text))count=Number(n.text.match(/^\d+/)[0]);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);if(count===null)throw Error('Missing actual HUD count');return count;});}
+async function activeCount(page){return page.evaluate(()=>{let count=null;function scan(n){if(n.text&&/^\d+ (?:手)?镯待解/.test(n.text))count=Number(n.text.match(/^\d+/)[0]);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);if(count===null)throw Error('Missing actual HUD count');return count;});}
 async function backdropRegistration(page){return page.evaluate(()=>{
  function find(n,predicate){if(predicate(n))return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i),predicate);if(b)return b}return null}
  const ring=find(Laya.stage,n=>n.name==='ring-id:1G').parent,root=ring.parent.parent,bg=find(Laya.stage,n=>n.name==='board-backdrop');if(!bg)throw Error('Missing board artwork camera');
@@ -63,7 +63,7 @@ async function turn(page,session,a,touch){
 async function shot(page,results,name){const path=results+'/'+name+'.png';await page.screenshot({path});return{name,path,sha256:crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex')}}
 module.exports=async function(page,context,name,touch,results){
  const screenshots=[],session=await context.newCDPSession(page);
- await button(page,'挑战九宫锁玉阵',touch);await waitText(page,'超级困难 · 九宫锁玉阵');
+ await button(page,'挑战九宫锁玉阵',touch);await waitText(page,'第1关');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
  let before=await snapshot(page);assert.equal(Object.keys(before).length,54);assert.equal(await activeCount(page),54);
  const lattice=await page.evaluate(()=>{const points=[];function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))points.push({x:n.parent.x,y:n.parent.y});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return points});
@@ -71,8 +71,14 @@ module.exports=async function(page,context,name,touch,results){
  assert.equal(await page.evaluate(()=>{const out=[];function scan(n){if(n.name?.startsWith('ring-id:'))out.push(n.text);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return out.some(Boolean)}),false,'Formal ring labels are blank');
  const artwork=await backdropRegistration(page);assertRegistered(artwork);
  const texts=await page.evaluate(()=>{const out=[];function walk(n){if(!n.visible)return;if(n.text)out.push(n.text);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return out});
- for(const label of ['双指缩放 / 移动画面','演示','提示','↶ 微调','微调 ↷','↶ 30°','30° ↷','旋转手镯','移动棋盘','撤销'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
+ for(const label of ['双指缩放 / 移动画面','演示','图谱','↶ 微调','微调 ↷','↶ 30°','30° ↷','旋转手镯','移动棋盘','撤销'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
  screenshots.push(await shot(page,results,name+'-formal-overview'));
+ const hintVisible=()=>page.evaluate(()=>{function walk(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(walk(n.getChildAt(i)))return true;return false}return walk(Laya.stage)});
+ await button(page,'提示',touch);await page.waitForFunction(()=>{function walk(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(walk(n.getChildAt(i)))return true;return false}return walk(Laya.stage)});
+ assert.deepEqual(await snapshot(page),before,'Hint cannot rotate bracelets');assert.equal(await activeCount(page),54);
+ screenshots.push(await shot(page,results,name+'-formal-hint'));
+ await button(page,'重开',touch);assert.equal(await hintVisible(),false,'Restart removes the finger hint');
+
  let camera=await view(page,'1G'),r=camera.rect,mid={x:r.x+r.w/2,y:r.y+r.h/2};
  if(touch){
   const initial=[{x:mid.x-35,y:mid.y,id:11},{x:mid.x+35,y:mid.y,id:12}];await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:initial});
@@ -103,6 +109,7 @@ module.exports=async function(page,context,name,touch,results){
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[],firstEngineFrame=Laya.timer.currFrame;let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a.at(-1),engineFrames:Laya.timer.currFrame-firstEngineFrame})}}requestAnimationFrame(step)}));fs.writeFileSync(results+'/'+name+'-formal-frames.json',JSON.stringify(frames));console.log(name+' 54-ring frame times: '+JSON.stringify(frames));assert.ok(frames.engineFrames>30,'Actual Laya frame loop must keep advancing: '+JSON.stringify(frames));assert.ok(frames.p95<100,'54-ring rendering p95 under 100ms: '+JSON.stringify(frames));
  const expected=core.make(10),smokeActions=process.env.JADE_PUBLIC_SMOKE==='true'?4:route.length;
  for(let i=0;i<smokeActions;i++){
+  if(i===1){const beforeHint=await snapshot(page);await button(page,'提示',touch);await page.waitForFunction(()=>{function walk(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(walk(n.getChildAt(i)))return true;return false}return walk(Laya.stage)},null,{timeout:20000});assert.deepEqual(await snapshot(page),beforeHint,'Progress hint stays read-only');}
   core.request(expected,route[i].id,route[i].delta);await turn(page,session,route[i],touch);
   assert.equal(await activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Actual HUD matches legal drag '+i);
   const halos=await page.evaluate(()=>{const lengths=[];function walk(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))lengths.push(n.parent.getChildAt(1).graphics.cmds?.length||0);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return lengths;});assert.ok(halos.every(n=>n===0),'No circle overlay even during selection');
@@ -112,7 +119,7 @@ module.exports=async function(page,context,name,touch,results){
  if(process.env.JADE_PUBLIC_SMOKE==='true'){await button(page,'重开',touch);assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'挑战九宫锁玉阵');return {rings:54,rods:62,actions:4,fullRoute:false,frames,screenshots,pinch:touch,wheel:!touch,passed:true};}
  await waitText(page,'九宫锁玉阵 · 全部解开');const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
  assert.ok(save.records[10]);assert.equal(save.records[10].steps,route.length);screenshots.push(await shot(page,results,name+'-formal-win'));
- await button(page,'再挑战一次',touch);await waitText(page,'超级困难 · 九宫锁玉阵');assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));
+ await button(page,'再挑战一次',touch);await waitText(page,'第1关');assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));
  await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'挑战九宫锁玉阵');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).records[10].steps),route.length);
  return {rings:54,rods:62,actions:route.length,frames,screenshots,pinch:touch,wheel:!touch,passed:true};
 };
