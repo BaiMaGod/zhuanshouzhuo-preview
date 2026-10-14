@@ -91,7 +91,7 @@ jobs:
   deploy:
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -124,9 +124,13 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
+          name: jade-pages-${{ github.run_attempt }}
           path: source/dist
       - uses: actions/deploy-pages@v4
         id: deployment
+        with:
+          artifact_name: jade-pages-${{ github.run_attempt }}
+          timeout: 1100000
   public-smoke:
     needs: deploy
     runs-on: ubuntu-latest
