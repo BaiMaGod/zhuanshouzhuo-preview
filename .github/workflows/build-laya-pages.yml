@@ -7,9 +7,9 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: 'eb271916aeb179140e6e46a85dbe75c15ff01259'
+        default: '5c1a43b32116d39bcc3b2e3480cff74b86a6cf71'
 env:
-  JADE_SOURCE_SHA: 'eb271916aeb179140e6e46a85dbe75c15ff01259'
+  JADE_SOURCE_SHA: '5c1a43b32116d39bcc3b2e3480cff74b86a6cf71'
 permissions:
   contents: read
   pages: write
