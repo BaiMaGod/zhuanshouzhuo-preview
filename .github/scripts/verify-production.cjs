@@ -74,8 +74,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.10.3');assert.equal(provenance.sourceSha,'cb6d8918b0762ed5b9aa6c79ef83ba258d17df27');
- await page.goto(base+'?debug&v=0.10.3',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.10.4');assert.equal(provenance.sourceSha,'51cad13861fbaebd6dc42489040880dbe7f68022');
+ await page.goto(base+'?debug&v=0.10.4',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -103,13 +103,13 @@ async function run(browser,name,viewport,touch,allLevels){
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
  screenshots.push(await shot(page,name+'-collision-v03'));
- await button(page,'音效 开',touch);await page.waitForTimeout(120);
+ await button(page,'音效开',touch);await page.waitForTimeout(120);
  await page.waitForFunction(()=>window.__audioQa.currentPeak<.0001);
  assert.equal(await page.evaluate(()=>window.__audioQa.activeLoops),0,'Mute releases friction voices');
  const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
- await button(page,'音效 关',touch);
+ await button(page,'音效关',touch);
  const pickB=await page.evaluate(()=>{
   function find(n){if(!n.visible)return null;if(n.text==='B')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
   const ring=find(Laya.stage).parent,p=ring.localToGlobal(new Laya.Point(0,0)),r=document.querySelector('canvas').getBoundingClientRect();
@@ -160,7 +160,8 @@ async function run(browser,name,viewport,touch,allLevels){
  assert.ok(audio.peak>.001,'Audio graph delivers nonzero sound signal');
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
  // Navigation, locked level, replay of tutorial, and settings are all real UI inputs.
- await button(page,'图谱',touch);await waitText(page,'关卡图谱');
+ await button(page,'教程关卡',touch);await waitText(page,'教程关卡');
+ assert.equal(await hasText(page,'第10关'),true,'Tutorial selector contains all ten stages');
  screenshots.push(await shot(page,name+'-map-v04'));
  await button(page,'',touch);await waitText(page,'新手练习');
  assert.equal(await hasText(page,'继续解镯'),false);
@@ -168,7 +169,14 @@ async function run(browser,name,viewport,touch,allLevels){
  const before=await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1'));
  await button(page,'新手练习',touch);await waitText(page,'新手 · 1 / 2  找到粉色 B 镯');
  assert.equal(await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1')),before,'Practice preserves progress');
- await button(page,'跳过',touch);await button(page,'图谱',touch);await button(page,'',touch);
+ await button(page,'跳过',touch);
+ await button(page,'提示',touch);
+ await page.waitForFunction(()=>{
+  function find(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}
+  return find(Laya.stage);
+ },null,{timeout:20000});
+ assert.equal(await hasText(page,'看这一只玉环'),false,'Tutorial hint never opens a modal');
+ await button(page,'教程关卡',touch);await waitText(page,'教程关卡');await button(page,'',touch);
  await waitText(page,'新手练习');
  for(let attempt=0;attempt<3;attempt++){
   await button(page,'@settings',touch);await waitText(page,'设置');
@@ -196,9 +204,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'cb6d8918b0762ed5b9aa6c79ef83ba258d17df27',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'51cad13861fbaebd6dc42489040880dbe7f68022',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'cb6d8918b0762ed5b9aa6c79ef83ba258d17df27',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'51cad13861fbaebd6dc42489040880dbe7f68022',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
