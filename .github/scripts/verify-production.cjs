@@ -74,8 +74,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.5.10');assert.equal(provenance.sourceSha,'9ce84e181547d5145f6cac38ec93e2f720d6ea9b');
- await page.goto(base+'?debug&v=0.5.10',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.6.0');assert.equal(provenance.sourceSha,'4c3da6dce69dbe247dc88ca5b0462c3ee6674ac4');
+ await page.goto(base+'?debug&v=0.6.0',{waitUntil:'networkidle'});
  await waitText(page,'开始解镯',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -99,14 +99,14 @@ async function run(browser,name,viewport,touch,allLevels){
  });
  if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
  const startHits=await page.evaluate(()=>window.__audioQa.hits);
- await button(page,'30° ↷',touch);
+ await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30},touch);
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
  screenshots.push(await shot(page,name+'-collision-v03'));
  await button(page,'音效 开',touch);await page.waitForTimeout(120);
  await page.waitForFunction(()=>window.__audioQa.currentPeak<.0001);
  assert.equal(await page.evaluate(()=>window.__audioQa.activeLoops),0,'Mute releases friction voices');
  const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
- await button(page,'30° ↷',touch);await page.waitForTimeout(150);
+ await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30},touch);await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
  await button(page,'音效 关',touch);
  const pickB=await page.evaluate(()=>{
@@ -116,7 +116,8 @@ async function run(browser,name,viewport,touch,allLevels){
  });
  if(touch)await page.touchscreen.tap(pickB.x,pickB.y);else await page.mouse.click(pickB.x,pickB.y);
  await waitText(page,'新手 · 2 / 2  拖动，让缺口对准扣');
- screenshots.push(await shot(page,name+'-guide-selected-v04'));
+ for(const label of ['撤销','↶ 30°','30° ↷','↶ 微调','微调 ↷','演示','旋转手镯'])assert.equal(await hasText(page,label),false,'No forbidden control '+label);
+ screenshots.push(await shot(page,name+'-guide-selected-v04')); 
  const material=await checkJadePixels(page,viewport);
  console.log(name+' visible jade texture: '+JSON.stringify(material));
  const points=await page.evaluate(()=>{
@@ -137,17 +138,17 @@ async function run(browser,name,viewport,touch,allLevels){
  assert.equal(await hasText(page,'跳过'),false,'Guide is removed after actual clear');
  console.log(name+': real '+(touch?'touch':'mouse')+' drag cleared level 1.');
  if(allLevels)for(let i=1;i<10;i++){
-  await button(page,'进入第 '+(i+1)+' 境',touch);await waitText(page,'演示');
+  await button(page,'进入第 '+(i+1)+' 境',touch);await waitText(page,'重开');
   if(i===3||i===4||i===9)screenshots.push(await shot(page,name+'-level'+(i+1)+'-v03'));
-  await button(page,'演示',touch);await waitText(page,i===9?'十境皆通':'这一境，解开了');
+  const path=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[i];const session=await context.newCDPSession(page);for(const a of path)await verifyFormal.turn(page,session,a,touch);await waitText(page,i===9?'十境皆通':'这一境，解开了');
   const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
   assert.ok(save.records[i]);assert.equal(save.unlocked,Math.min(9,i+1));
-  console.log(name+': UI progression + legal demo cleared level '+(i+1)+'.');
+  console.log(name+': UI progression + real ring gestures cleared level '+(i+1)+'.');
  }
- await button(page,'再解一次',touch);await waitText(page,'演示');
+ await button(page,'再解一次',touch);await waitText(page,'重开');
  assert.equal(await hasText(page,'这一境，解开了'),false);assert.equal(await hasText(page,'十境皆通'),false);
  screenshots.push(await shot(page,name+'-restart-v03'));
- await button(page,'重开',touch);await waitText(page,'演示');
+ await button(page,'重开',touch);await waitText(page,'重开');
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a[a.length-1]})}}requestAnimationFrame(step)}));
  fs.writeFileSync(results+'/'+name+'-frames.json',JSON.stringify(frames)); console.log(name+' frame times: '+JSON.stringify(frames));
  assert.ok(frames.p95<100,'CI rendering p95 under 100 ms');
@@ -181,8 +182,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'9ce84e181547d5145f6cac38ec93e2f720d6ea9b',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'4c3da6dce69dbe247dc88ca5b0462c3ee6674ac4',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'9ce84e181547d5145f6cac38ec93e2f720d6ea9b',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'4c3da6dce69dbe247dc88ca5b0462c3ee6674ac4',passed:false,error:String(e)},null,2));process.exit(1)});
+
 
