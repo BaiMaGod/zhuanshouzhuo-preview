@@ -48,9 +48,17 @@ async function focus(page,session,id,touch){
  assert.ok(fits(state),'Two-finger pan can expose the whole ring '+id+' '+JSON.stringify(state));return state;
 }
 async function turn(page,session,a,touch){
- const state=await focus(page,session,a.id,touch),start=state.angle+50,points=[];const n=Math.max(1,Math.ceil(Math.abs(a.delta)/4));
- for(let k=0;k<=n;k++)points.push(await nodePoint(page,a.id,start+a.delta*k/n));
- await drag(page,session,points,touch);await page.waitForTimeout(400);
+ const initial=await focus(page,session,a.id,touch);let remaining=a.delta;
+ for(let fragment=0;fragment<8;fragment++){
+  const state=await focus(page,session,a.id,touch),start=state.angle+50,points=[],n=Math.max(1,Math.ceil(Math.abs(remaining)/4));
+  for(let k=0;k<=n;k++)points.push(await nodePoint(page,a.id,start+remaining*k/n));
+  await drag(page,session,points,touch);await page.waitForTimeout(400);
+  const after=await view(page,a.id);if(!after.visible||a.expectBlocked)return;
+  const norm=x=>(x%360+360)%360,progress=a.delta>0?norm(after.angle-initial.angle):-norm(initial.angle-after.angle);remaining=a.delta-progress;
+  if(Math.abs(remaining)<1.5)return;
+  if(fragment===0)console.log('Resume real gesture after intermediate clear: '+a.id+' remaining '+remaining);
+ }
+ throw Error('Gesture did not reach its legal destination '+JSON.stringify({a,remaining,view:await view(page,a.id)}));
 }
 async function shot(page,results,name){const path=results+'/'+name+'.png';await page.screenshot({path});return{name,path,sha256:crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex')}}
 module.exports=async function(page,context,name,touch,results){
@@ -87,7 +95,7 @@ module.exports=async function(page,context,name,touch,results){
  // compact bridge. Check the physical stop from this revision, not the old long rod.
  const core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default;
  const stop=core.request(core.make(10),'1A',10);assert.equal(stop.blocked.kind,'captive');
- await turn(page,session,{id:'1A',delta:10},touch);let blocked=await snapshot(page);assert.equal(await activeCount(page),54);
+ await turn(page,session,{id:'1A',delta:10,expectBlocked:true},touch);let blocked=await snapshot(page);assert.equal(await activeCount(page),54);
  assert.ok(Math.abs(core.diff(blocked['1A'].angle,before['1A'].angle)-stop.done)<.251,'Real drag stops at the authoritative captive collision');
  await button(page,'重开',touch);assert.deepEqual(await snapshot(page),before);for(let i=0;i<5;i++)await button(page,'+',touch);
  const cacheInfo=await page.evaluate(()=>{function find(n){if(n.text==='1G')return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}const ring=find(Laya.stage).parent,viewport=ring.parent.parent.parent,scene=viewport.parent;const rect=n=>{const r=n.getSelfBounds(new Laya.Rectangle(0,0,0,0));return {x:r.x,y:r.y,width:r.width,height:r.height}};return {sceneCache:scene.cacheAs,viewportCache:viewport.cacheAs,sceneBounds:rect(scene),viewportBounds:rect(viewport),dpr:devicePixelRatio,glVersion:document.querySelector('canvas').getContext('webgl')?.getParameter(document.querySelector('canvas').getContext('webgl').VERSION)};});console.log(name+' cache diagnostics: '+JSON.stringify(cacheInfo));
@@ -104,9 +112,12 @@ module.exports=async function(page,context,name,touch,results){
  await waitText(page,'九宫锁玉阵 · 全部解开');const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
  assert.ok(save.records[10]);assert.equal(save.records[10].steps,route.length);screenshots.push(await shot(page,results,name+'-formal-win'));
  await button(page,'再挑战一次',touch);await waitText(page,'超级困难 · 九宫锁玉阵');assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));
- await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'挑战九宫锁玉阵');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).records[10].steps),63);
+ await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'挑战九宫锁玉阵');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).records[10].steps),route.length);
  return {rings:54,rods:62,actions:route.length,frames,screenshots,pinch:touch,wheel:!touch,passed:true};
 };
 
 module.exports.turn=turn;
 
+
+module.exports.view=view;
+module.exports.activeCount=activeCount;

@@ -99,14 +99,14 @@ async function run(browser,name,viewport,touch,allLevels){
  });
  if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
  const startHits=await page.evaluate(()=>window.__audioQa.hits);
- await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30},touch);
+ await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
  screenshots.push(await shot(page,name+'-collision-v03'));
  await button(page,'音效 开',touch);await page.waitForTimeout(120);
  await page.waitForFunction(()=>window.__audioQa.currentPeak<.0001);
  assert.equal(await page.evaluate(()=>window.__audioQa.activeLoops),0,'Mute releases friction voices');
  const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
- await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30},touch);await page.waitForTimeout(150);
+ await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
  await button(page,'音效 关',touch);
  const pickB=await page.evaluate(()=>{
@@ -140,7 +140,7 @@ async function run(browser,name,viewport,touch,allLevels){
  if(allLevels)for(let i=1;i<10;i++){
   await button(page,'进入第 '+(i+1)+' 境',touch);await waitText(page,'重开');
   if(i===3||i===4||i===9)screenshots.push(await shot(page,name+'-level'+(i+1)+'-v03'));
-  const path=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[i];const session=await context.newCDPSession(page);for(const a of path)await verifyFormal.turn(page,session,a,touch);await waitText(page,i===9?'十境皆通':'这一境，解开了');
+  const path=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[i];const session=await context.newCDPSession(page),core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default,expected=core.make(i);for(const a of path){const actual=await verifyFormal.view(page,a.id),adjusted={...a,delta:a.delta+core.diff(core.ring(expected,a.id).a,actual.angle)};core.request(expected,a.id,a.delta);await verifyFormal.turn(page,session,adjusted,touch);assert.equal(await verifyFormal.activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Teaching '+(i+1)+' actual gesture '+a.id);}await waitText(page,i===9?'十境皆通':'这一境，解开了');
   const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
   assert.ok(save.records[i]);assert.equal(save.unlocked,Math.min(9,i+1));
   console.log(name+': UI progression + real ring gestures cleared level '+(i+1)+'.');
