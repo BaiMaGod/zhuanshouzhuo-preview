@@ -7,9 +7,9 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: '4ef622962c4ffa8475ccdadab727a6f6d5db05cc'
+        default: '4bdc4217dd26528f0f1b7dabfd2dff51072f9c61'
 env:
-  JADE_SOURCE_SHA: '4ef622962c4ffa8475ccdadab727a6f6d5db05cc'
+  JADE_SOURCE_SHA: '4bdc4217dd26528f0f1b7dabfd2dff51072f9c61'
 permissions:
   contents: read
   pages: write
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install, typecheck and run 41 checks
+      - name: Install, typecheck and run game regression checks
         working-directory: source
         run: |
           set -euo pipefail
