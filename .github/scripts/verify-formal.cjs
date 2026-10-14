@@ -1,20 +1,20 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
 const route=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[10];
 async function nodePoint(page,label,ringAngle=null){return page.evaluate(({label,ringAngle})=>{
- function find(n){if(!n.visible)return null;if((n.label?.text||n.text)===label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
+ function find(n){if(!n.visible)return null;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
  const n=find(Laya.stage);if(!n)throw Error('Missing '+label);const target=ringAngle===null?n:n.parent;
  const local=ringAngle===null?new Laya.Point(target.width/2,target.height/2):new Laya.Point(40*Math.cos(ringAngle*Math.PI/180),40*Math.sin(ringAngle*Math.PI/180));
  const p=target.localToGlobal(local),r=document.querySelector('canvas').getBoundingClientRect();return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
  },{label,ringAngle})}
 async function button(page,label,touch){const p=await nodePoint(page,label);if(touch)await page.touchscreen.tap(p.x,p.y);else await page.mouse.click(p.x,p.y);await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
-async function waitText(page,label){await page.waitForFunction(label=>{function find(n){if(!n.visible)return false;if((n.label?.text||n.text)===label)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}return find(Laya.stage)},label,{timeout:15000})}
+async function waitText(page,label){await page.waitForFunction(label=>{function find(n){if(!n.visible)return false;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}return find(Laya.stage)},label,{timeout:15000})}
 async function snapshot(page){return page.evaluate(()=>{
- const rings={};function scan(n){if(n.text&&/^[1-9][GABCDE]$/.test(n.text))rings[n.text]={angle:n.parent.getChildAt(2).rotation};for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return rings;
+ const rings={};function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))rings[n.name.slice(8)]={angle:n.parent.getChildAt(2).rotation};for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return rings;
  })}
 async function activeCount(page){return page.evaluate(()=>{let count=null;function scan(n){if(n.text&&/^\d+ 镯待解/.test(n.text))count=Number(n.text.match(/^\d+/)[0]);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);if(count===null)throw Error('Missing actual HUD count');return count;});}
 async function backdropRegistration(page){return page.evaluate(()=>{
  function find(n,predicate){if(predicate(n))return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i),predicate);if(b)return b}return null}
- const ring=find(Laya.stage,n=>n.text==='1G').parent,root=ring.parent.parent,bg=find(Laya.stage,n=>n.name==='board-backdrop');if(!bg)throw Error('Missing board artwork camera');
+ const ring=find(Laya.stage,n=>n.name==='ring-id:1G').parent,root=ring.parent.parent,bg=find(Laya.stage,n=>n.name==='board-backdrop');if(!bg)throw Error('Missing board artwork camera');
  const basis=n=>[[0,0],[1,0],[0,1]].map(([x,y])=>{const p=n.localToGlobal(new Laya.Point(x,y));return {x:p.x,y:p.y}});
  const ringPoint=ring.localToGlobal(new Laya.Point(0,0)),artPoint=bg.localToGlobal(new Laya.Point(ring.x+ring.parent.x,ring.y+ring.parent.y));
  const images=['board-garden','board-tray'].map(name=>{const n=find(bg,n=>n.name===name);if(!n||n.parent!==bg)throw Error('Unregistered '+name);return {name,x:n.x,y:n.y,scale:n.scaleX,rotation:n.rotation}});
@@ -26,7 +26,7 @@ function assertRegistered(r,initial){
  if(initial)assert.deepEqual(r.images,initial.images,'Zoom, pan and undo cannot move artwork inside the world');
 }
 async function view(page,id){return page.evaluate(id=>{
- function find(n){if(n.text===id)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
+ function find(n){if(n.text===id||n.name==='ring-id:'+id)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
  const label=find(Laya.stage),ring=label.parent,root=ring.parent.parent,viewport=root.parent,r=document.querySelector('canvas').getBoundingClientRect();
  const css=p=>({x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height});
  const p=css(ring.localToGlobal(new Laya.Point(0,0))),q=css(ring.localToGlobal(new Laya.Point(40,0))),tl=css(viewport.localToGlobal(new Laya.Point(0,0))),br=css(viewport.localToGlobal(new Laya.Point(viewport.width,viewport.height)));
@@ -66,11 +66,12 @@ module.exports=async function(page,context,name,touch,results){
  await button(page,'挑战九宫锁玉阵',touch);await waitText(page,'超级困难 · 九宫锁玉阵');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
  let before=await snapshot(page);assert.equal(Object.keys(before).length,54);assert.equal(await activeCount(page),54);
- const lattice=await page.evaluate(()=>{const points=[];function scan(n){if(n.text&&/^[1-9][GABCDE]$/.test(n.text))points.push({x:n.parent.x,y:n.parent.y});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return points});
+ const lattice=await page.evaluate(()=>{const points=[];function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))points.push({x:n.parent.x,y:n.parent.y});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return points});
  const rows=new Map;for(const p of lattice){const y=Math.round(p.y*1000);if(!rows.has(y))rows.set(y,[]);rows.get(y).push(p.x)}const bands=[...rows].sort((a,b)=>a[0]-b[0]);assert.ok(bands.length>=9);assert.ok(Math.max(...bands.slice(3,-3).map(([,xs])=>xs.length))>Math.max(bands[0][1].length,bands.at(-1)[1].length),'Rendered oval narrows at both ends');for(const [,xs]of bands){xs.sort((a,b)=>a-b);for(let i=1;i<xs.length;i++)assert.ok(Math.abs(xs[i]-xs[i-1]-92.0001)<1e-4,'Rendered oval has no empty interior cells');}
+ assert.equal(await page.evaluate(()=>{const out=[];function scan(n){if(n.name?.startsWith('ring-id:'))out.push(n.text);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return out.some(Boolean)}),false,'Formal ring labels are blank');
  const artwork=await backdropRegistration(page);assertRegistered(artwork);
  const texts=await page.evaluate(()=>{const out=[];function walk(n){if(!n.visible)return;if(n.text)out.push(n.text);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return out});
- for(const label of ['演示','提示','↶ 微调','微调 ↷','↶ 30°','30° ↷','旋转手镯','移动棋盘','撤销'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
+ for(const label of ['双指缩放 / 移动画面','演示','提示','↶ 微调','微调 ↷','↶ 30°','30° ↷','旋转手镯','移动棋盘','撤销'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
  screenshots.push(await shot(page,results,name+'-formal-overview'));
  let camera=await view(page,'1G'),r=camera.rect,mid={x:r.x+r.w/2,y:r.y+r.h/2};
  if(touch){
@@ -98,13 +99,13 @@ module.exports=async function(page,context,name,touch,results){
  await turn(page,session,{id:'1A',delta:10,expectBlocked:true},touch);let blocked=await snapshot(page);assert.equal(await activeCount(page),54);
  assert.ok(Math.abs(core.diff(blocked['1A'].angle,before['1A'].angle)-stop.done)<.251,'Real drag stops at the authoritative captive collision');
  await button(page,'重开',touch);assert.deepEqual(await snapshot(page),before);for(let i=0;i<5;i++)await button(page,'+',touch);
- const cacheInfo=await page.evaluate(()=>{function find(n){if(n.text==='1G')return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}const ring=find(Laya.stage).parent,viewport=ring.parent.parent.parent,scene=viewport.parent;const rect=n=>{const r=n.getSelfBounds(new Laya.Rectangle(0,0,0,0));return {x:r.x,y:r.y,width:r.width,height:r.height}};return {sceneCache:scene.cacheAs,viewportCache:viewport.cacheAs,sceneBounds:rect(scene),viewportBounds:rect(viewport),dpr:devicePixelRatio,glVersion:document.querySelector('canvas').getContext('webgl')?.getParameter(document.querySelector('canvas').getContext('webgl').VERSION)};});console.log(name+' cache diagnostics: '+JSON.stringify(cacheInfo));
+ const cacheInfo=await page.evaluate(()=>{function find(n){if(n.name==='ring-id:1G')return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}const ring=find(Laya.stage).parent,viewport=ring.parent.parent.parent,scene=viewport.parent;const rect=n=>{const r=n.getSelfBounds(new Laya.Rectangle(0,0,0,0));return {x:r.x,y:r.y,width:r.width,height:r.height}};return {sceneCache:scene.cacheAs,viewportCache:viewport.cacheAs,sceneBounds:rect(scene),viewportBounds:rect(viewport),dpr:devicePixelRatio,glVersion:document.querySelector('canvas').getContext('webgl')?.getParameter(document.querySelector('canvas').getContext('webgl').VERSION)};});console.log(name+' cache diagnostics: '+JSON.stringify(cacheInfo));
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[],firstEngineFrame=Laya.timer.currFrame;let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a.at(-1),engineFrames:Laya.timer.currFrame-firstEngineFrame})}}requestAnimationFrame(step)}));fs.writeFileSync(results+'/'+name+'-formal-frames.json',JSON.stringify(frames));console.log(name+' 54-ring frame times: '+JSON.stringify(frames));assert.ok(frames.engineFrames>30,'Actual Laya frame loop must keep advancing: '+JSON.stringify(frames));assert.ok(frames.p95<100,'54-ring rendering p95 under 100ms: '+JSON.stringify(frames));
  const expected=core.make(10),smokeActions=process.env.JADE_PUBLIC_SMOKE==='true'?4:route.length;
  for(let i=0;i<smokeActions;i++){
   core.request(expected,route[i].id,route[i].delta);await turn(page,session,route[i],touch);
   assert.equal(await activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Actual HUD matches legal drag '+i);
-  const halos=await page.evaluate(()=>{const lengths=[];function walk(n){if(n.text&&/^[1-9][GABCDE]$/.test(n.text))lengths.push(n.parent.getChildAt(1).graphics.cmds?.length||0);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return lengths;});assert.ok(halos.every(n=>n===0),'No circle overlay even during selection');
+  const halos=await page.evaluate(()=>{const lengths=[];function walk(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))lengths.push(n.parent.getChildAt(1).graphics.cmds?.length||0);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return lengths;});assert.ok(halos.every(n=>n===0),'No circle overlay even during selection');
   if(i===0)assertRegistered(await backdropRegistration(page),artwork);
   if(i%6===5)console.log(name+' formal real gestures: '+(i+1)+' / '+route.length);
  }
