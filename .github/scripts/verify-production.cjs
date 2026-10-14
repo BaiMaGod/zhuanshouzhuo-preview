@@ -14,7 +14,7 @@ async function waitText(page,text,timeout=60000){await page.waitForFunction(text
 },text,{timeout})}
 async function button(page,label,touch){
  const point=await page.evaluate(label=>{
-  function find(n){if(!n.visible)return null;if(n.label?.text===label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
+  function find(n){if(!n.visible)return null;if(label.startsWith('@')?n.name==='button:'+label.slice(1):n.label?.text===label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
   const b=find(Laya.stage);if(!b)throw Error('Missing visible button '+label);
   const p=b.localToGlobal(new Laya.Point(b.width/2,b.height/2)),r=document.querySelector('canvas').getBoundingClientRect();
   return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
@@ -74,12 +74,13 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.10.3');assert.equal(provenance.sourceSha,'afc4aa7650ed7dbcd423d28db166a44821603f5b');
+ const provenance=await release.json();assert.equal(provenance.version,'0.10.3');assert.equal(provenance.sourceSha,'cb6d8918b0762ed5b9aa6c79ef83ba258d17df27');
  await page.goto(base+'?debug&v=0.10.3',{waitUntil:'networkidle'});
- await waitText(page,'开始解镯',30000);
+ await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
- await button(page,'开始解镯',touch);
+ for(const hidden of ['继续解镯','开始解镯','玉  环  十  境','转一转，环环相扣','一扣入门 · 十境解谜'])assert.equal(await hasText(page,hidden),false,'Removed home copy: '+hidden);
+ await button(page,'新手练习',touch);
  await waitText(page,'新手 · 1 / 2  找到粉色 B 镯');
  assert.equal(await hasText(page,'先解这一扣'),false,'Tutorial must be playable without a modal');
  screenshots.push(await shot(page,name+'-guide-choose'));
@@ -162,14 +163,27 @@ async function run(browser,name,viewport,touch,allLevels){
  await button(page,'图谱',touch);await waitText(page,'关卡图谱');
  screenshots.push(await shot(page,name+'-map-v04'));
  await button(page,'',touch);await waitText(page,'新手练习');
- assert.equal(await hasText(page,'继续解镯'),true);
+ assert.equal(await hasText(page,'继续解镯'),false);
+ await waitText(page,'第1关');
  const before=await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1'));
  await button(page,'新手练习',touch);await waitText(page,'新手 · 1 / 2  找到粉色 B 镯');
  assert.equal(await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1')),before,'Practice preserves progress');
  await button(page,'跳过',touch);await button(page,'图谱',touch);await button(page,'',touch);
- await waitText(page,'新手练习');await button(page,'',touch);await waitText(page,'玉盘小憩');
- screenshots.push(await shot(page,name+'-settings-v04'));
- await button(page,'回到玉盘',touch);assert.equal(await hasText(page,'玉盘小憩'),false);
+ await waitText(page,'新手练习');
+ for(let attempt=0;attempt<3;attempt++){
+  await button(page,'@settings',touch);await waitText(page,'设置');
+  if(attempt===0)screenshots.push(await shot(page,name+'-settings-v04'));
+  await button(page,'关闭',touch);assert.equal(await hasText(page,'设置'),false);
+  await waitText(page,'新手练习');
+ }
+ await button(page,'@settings',touch);await waitText(page,'设置');
+ await button(page,'音效 开',touch);await waitText(page,'音效 关');
+ await button(page,'关闭',touch);
+ await button(page,'@settings',touch);await waitText(page,'音效 关');
+ await button(page,'音效 关',touch);await waitText(page,'音效 开');
+ await button(page,'关闭',touch);
+ assert.equal(await hasText(page,'设置'),false);
+ await waitText(page,'第1关');
  screenshots.push(await shot(page,name+'-home-progress-v04'));
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
  const formal=await verifyFormal(page,context,name,touch,results);await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
@@ -182,9 +196,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'afc4aa7650ed7dbcd423d28db166a44821603f5b',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'cb6d8918b0762ed5b9aa6c79ef83ba258d17df27',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'afc4aa7650ed7dbcd423d28db166a44821603f5b',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'cb6d8918b0762ed5b9aa6c79ef83ba258d17df27',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
