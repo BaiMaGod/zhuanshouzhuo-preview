@@ -1,4 +1,5 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require('node:crypto');
+const {PNG}=require(process.cwd()+'/.qa/node_modules/pngjs');
 const route=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[10];
 async function nodePoint(page,label,ringAngle=null){return page.evaluate(({label,ringAngle})=>{
  function find(n){if(!n.visible)return null;if((n.label?.text||n.text)===label||n.name==='ring-id:'+label||n.name==='button:'+({'重开':'restart','回到首页':'home','音效':'sound','玩法':'help'}[label]||'NONE'))return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
@@ -72,6 +73,20 @@ module.exports=async function(page,context,name,touch,results){
  const rows=new Map;for(const p of lattice){const y=Math.round(p.y*1000);if(!rows.has(y))rows.set(y,[]);rows.get(y).push(p.x)}const bands=[...rows].sort((a,b)=>a[0]-b[0]);assert.ok(bands.length>=9);assert.ok(Math.max(...bands.slice(3,-3).map(([,xs])=>xs.length))>Math.max(bands[0][1].length,bands.at(-1)[1].length),'Rendered oval narrows at both ends');for(const [,xs]of bands){xs.sort((a,b)=>a-b);for(let i=1;i<xs.length;i++)assert.ok(Math.abs(xs[i]-xs[i-1]-92.0001)<1e-4,'Rendered oval has no empty interior cells');}
  assert.equal(await page.evaluate(()=>{const out=[];function scan(n){if(n.name?.startsWith('ring-id:'))out.push(n.text);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return out.some(Boolean)}),false,'Formal ring labels are blank');
  const artwork=await backdropRegistration(page);assertRegistered(artwork);
+ // Screenshot difference verifies that the actual PNG is painted, not merely
+ // registered in the display list beneath an opaque new wallpaper.
+ const visiblePlate=PNG.sync.read(await page.screenshot());
+ await page.evaluate(()=>{function walk(n){if(n.name==='board-tray')return n;for(let i=0;i<n.numChildren;i++){const r=walk(n.getChildAt(i));if(r)return r}return null}const tray=walk(Laya.stage);if(!tray)throw Error('Missing tray image');tray.visible=false;});
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const withoutPlate=PNG.sync.read(await page.screenshot());
+ await page.evaluate(()=>{function walk(n){if(n.name==='board-tray')return n;for(let i=0;i<n.numChildren;i++){const r=walk(n.getChildAt(i));if(r)return r}return null}walk(Laya.stage).visible=true;});
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ assert.equal(visiblePlate.width,withoutPlate.width);
+ let painted=0;
+ for(let i=0;i<visiblePlate.data.length;i+=4){
+  if(Math.abs(visiblePlate.data[i]-withoutPlate.data[i])+Math.abs(visiblePlate.data[i+1]-withoutPlate.data[i+1])+Math.abs(visiblePlate.data[i+2]-withoutPlate.data[i+2])>=9)painted++;
+ }
+ assert.ok(painted>400,'Original jade tray must visibly contribute to rendered screen; changed pixels: '+painted);
  const texts=await page.evaluate(()=>{const out=[];function walk(n){if(!n.visible)return;if(n.text)out.push(n.text);for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i))}walk(Laya.stage);return out});
  for(const label of ['双指缩放 / 移动画面','演示','图谱','↶ 微调','微调 ↷','↶ 30°','30° ↷','旋转手镯','移动棋盘','撤销'])assert.equal(texts.includes(label),false,'No teaching control in formal level '+label);
  screenshots.push(await shot(page,results,name+'-formal-overview'));
