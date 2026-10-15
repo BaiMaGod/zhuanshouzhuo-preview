@@ -66,7 +66,29 @@ async function turn(page,session,a,touch){
 async function shot(page,results,name){const path=results+'/'+name+'.png';await page.screenshot({path});return{name,path,sha256:crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex')}}
 module.exports=async function(page,context,name,touch,results){
  const screenshots=[],session=await context.newCDPSession(page);
- await button(page,'关卡图谱',touch);for(let i=0;i<5;i++)await button(page,'下一页',touch);await button(page,'第45关',touch);await waitText(page,'第45关');
+ // Check the new atlas with the untouched player save first.
+ await button(page,'关卡图谱',touch);
+ const inspect=()=>page.evaluate(()=>{
+  const cards=[];let viewport;
+  function scan(n){if(n.name==='atlas-viewport')viewport=n;if(n.name?.startsWith('formal-level:'))cards.push({name:n.name,enabled:n.enabled,w:n.width,h:n.height,text:Array.from({length:n.numChildren},(_,i)=>n.getChildAt(i).text).filter(Boolean)});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);
+  return {cards,height:viewport.height,offset:-viewport.getChildAt(0).y};
+ });
+ let atlas=await inspect();assert.equal(atlas.offset,0);assert.equal(atlas.cards.length,40);
+ assert.ok(atlas.cards.every(c=>c.w===148&&c.h<=132&&c.text.length===1));
+ assert.equal(atlas.cards.find(c=>c.name==='formal-level:2').enabled,false);
+ await button(page,'第2关',touch);assert.equal((await inspect()).offset,0);
+ await page.mouse.move(200,350);await page.mouse.wheel(0,atlas.height*2);await page.waitForTimeout(150);
+ atlas=await inspect();assert.equal(atlas.offset,atlas.height*2);assert.ok(atlas.cards.length<=60);
+ screenshots.push(await shot(page,results,name+'-atlas-scroll'));
+ // A historical non-contiguous record is an explicit compatibility fixture.
+ // It unlocks only the already completed legacy level; the full route below
+ // is still played using real input, with no game/debug state mutation.
+ await page.evaluate(()=>{const key='jade-bracelet-laya-v1',save=JSON.parse(localStorage.getItem(key));save.records[54]={steps:54,stars:3};localStorage.setItem(key,JSON.stringify(save));});
+ await page.reload({waitUntil:'networkidle'});await button(page,'关卡图谱',touch);
+ atlas=await inspect();assert.equal(atlas.offset,0,'Re-entry locates the first unfinished level');
+ await page.mouse.move(200,350);await page.mouse.wheel(0,atlas.height*2);await page.waitForTimeout(150);
+ assert.equal((await inspect()).cards.find(c=>c.name==='formal-level:45').enabled,true);
+ await button(page,'第45关',touch);await waitText(page,'第45关');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
  let before=await snapshot(page);assert.equal(Object.keys(before).length,54);assert.equal(await activeCount(page),54);
  const lattice=await page.evaluate(()=>{const points=[];function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))points.push({x:n.parent.x,y:n.parent.y});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return points});
