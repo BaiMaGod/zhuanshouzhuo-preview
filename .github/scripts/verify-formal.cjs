@@ -121,7 +121,15 @@ module.exports=async function(page,context,name,touch,results){
  atlas=await inspect();assert.equal(atlas.offset,0,'Re-entry locates the first unfinished level');
  await scrollTo(atlas.height*2);
  assert.equal((await inspect()).cards.find(c=>c.name==='formal-level:45').enabled,true);
- await button(page,'第45关',touch);await waitText(page,'第45关');
+ // The atlas deliberately blocks a click for 300ms after a scroll to
+ // prevent a swipe from accidentally entering a level.
+ await page.waitForTimeout(450);
+ await button(page,'第45关',touch);
+ await page.waitForFunction(()=>{
+  function count(n){let x=n.name?.startsWith('ring-id:')?1:0;for(let i=0;i<n.numChildren;i++)x+=count(n.getChildAt(i));return x}
+  return !!window.Laya?.stage&&count(Laya.stage)===54;
+ },null,{timeout:20000});
+ await waitText(page,'第45关');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
  let before=await snapshot(page);assert.equal(Object.keys(before).length,54);assert.equal(await activeCount(page),54);
  const lattice=await page.evaluate(()=>{const points=[];function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))points.push({x:n.parent.x,y:n.parent.y});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return points});
