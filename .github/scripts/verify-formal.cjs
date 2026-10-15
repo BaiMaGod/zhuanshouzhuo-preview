@@ -52,8 +52,8 @@ async function focus(page,session,id,touch){
 }
 async function turn(page,session,a,touch){
  const initial=await focus(page,session,a.id,touch);let remaining=a.delta;
- for(let fragment=0;fragment<8;fragment++){
-  const state=await focus(page,session,a.id,touch),start=state.angle+50,points=[],n=Math.max(1,Math.ceil(Math.abs(remaining)/4));
+ for(let fragment=0;fragment<16;fragment++){
+  const state=await focus(page,session,a.id,touch),start=state.angle+[50,65,35,80,20][fragment%5],points=[],n=Math.max(1,Math.ceil(Math.abs(remaining)/4));
   for(let k=0;k<=n;k++)points.push(await nodePoint(page,a.id,start+remaining*k/n));
   await drag(page,session,points,touch);await page.waitForTimeout(400);
   const after=await view(page,a.id);if(!after.visible||a.expectBlocked)return;
@@ -77,18 +77,28 @@ module.exports=async function(page,context,name,touch,results){
  assert.ok(atlas.cards.every(c=>c.w===148&&c.h<=132&&c.text.length===1));
  assert.equal(atlas.cards.find(c=>c.name==='formal-level:2').enabled,false);
  await button(page,'第2关',touch);assert.equal((await inspect()).offset,0);
- await page.mouse.move(200,350);
+ // Drag within the actual atlas viewport. This tests the player gesture rather
+ // than relying on browser-wheel delta units, which differ across Laya builds.
  const scrollTo=async(target)=>{
-  let ratio=1;
-  for(let attempt=0;attempt<8;attempt++){
-   const before=(await inspect()).offset,remaining=target-before;if(Math.abs(remaining)<.01)return;
-   const input=remaining*ratio;await page.mouse.wheel(0,input);await page.waitForTimeout(150);
-   const moved=(await inspect()).offset-before;if(moved)ratio=Math.abs(input/moved);
+  for(let attempt=0;attempt<18;attempt++){
+   const before=(await inspect()).offset,remaining=target-before;
+   if(Math.abs(remaining)<2)return;
+   const motion=Math.sign(remaining)*Math.min(Math.abs(remaining)+(Math.abs(remaining)<10?3:0),atlas.height*.45);
+   const v=await page.evaluate(down=>{
+    function find(n){if(n.name==='atlas-viewport')return n;for(let i=0;i<n.numChildren;i++){const c=find(n.getChildAt(i));if(c)return c}return null}
+    const box=find(Laya.stage);if(!box)throw Error('Missing atlas viewport');
+    const r=document.querySelector('canvas').getBoundingClientRect();
+    const p=box.localToGlobal(new Laya.Point(box.width/2,box.height*(down?.75:.25)));
+    return {x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height,scale:r.height/Laya.stage.height};
+   },motion>0);
+   await page.mouse.move(v.x,v.y);await page.mouse.down();
+   for(let k=1;k<=12;k++){await page.mouse.move(v.x,v.y-motion*v.scale*k/12);await page.waitForTimeout(8)}
+   await page.mouse.up();await page.waitForTimeout(130);
   }
-  assert.ok(Math.abs((await inspect()).offset-target)<.01,'Wheel reaches requested atlas page');
+  throw Error('Real atlas drag cannot reach requested page: '+JSON.stringify({target,actual:(await inspect()).offset}));
  };
  await scrollTo(atlas.height*2);
- atlas=await inspect();assert.equal(atlas.offset,atlas.height*2);assert.ok(atlas.cards.length<=60);
+ atlas=await inspect();assert.ok(Math.abs(atlas.offset-atlas.height*2)<2,'Real drag reaches atlas page 3');assert.ok(atlas.cards.length<=60);
  screenshots.push(await shot(page,results,name+'-atlas-scroll'));
  // A historical non-contiguous record is an explicit compatibility fixture.
  // It unlocks only the already completed legacy level; the full route below
@@ -96,7 +106,7 @@ module.exports=async function(page,context,name,touch,results){
  await page.evaluate(()=>{const key='jade-bracelet-laya-v1',save=JSON.parse(localStorage.getItem(key));save.records[54]={steps:54,stars:3};localStorage.setItem(key,JSON.stringify(save));});
  await page.reload({waitUntil:'networkidle'});await button(page,'关卡图谱',touch);
  atlas=await inspect();assert.equal(atlas.offset,0,'Re-entry locates the first unfinished level');
- await page.mouse.move(200,350);await scrollTo(atlas.height*2);
+ await scrollTo(atlas.height*2);
  assert.equal((await inspect()).cards.find(c=>c.name==='formal-level:45').enabled,true);
  await button(page,'第45关',touch);await waitText(page,'第45关');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
