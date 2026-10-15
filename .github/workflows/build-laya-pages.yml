@@ -1,5 +1,7 @@
 name: Build, verify and deploy jade game
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       source_ref:
