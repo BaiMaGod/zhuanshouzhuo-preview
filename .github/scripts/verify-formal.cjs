@@ -93,7 +93,8 @@ module.exports=async function(page,context,name,touch,results){
  const hintVisible=()=>page.evaluate(()=>{function walk(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(walk(n.getChildAt(i)))return true;return false}return walk(Laya.stage)});
  await button(page,'提示 ×1',touch);await page.waitForFunction(()=>{function walk(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(walk(n.getChildAt(i)))return true;return false}return walk(Laya.stage)});
  assert.deepEqual(await snapshot(page),before,'Hint cannot rotate bracelets');assert.equal(await activeCount(page),54);
- assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1-run-54')).hint),0);await button(page,'提示 ×0',touch);await waitText(page,'本关提示已用完');\n screenshots.push(await shot(page,results,name+'-formal-hint'));
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1-run-54')).hint),0);await button(page,'提示 ×0',touch);await waitText(page,'本关提示已用完');
+ screenshots.push(await shot(page,results,name+'-formal-hint'));
  await button(page,'重开',touch);assert.equal(await hintVisible(),false,'Restart removes the finger hint');
 
  let camera=await view(page,'1G'),r=camera.rect,mid={x:r.x+r.w/2,y:r.y+r.h/2};
