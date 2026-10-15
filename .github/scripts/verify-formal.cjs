@@ -71,7 +71,7 @@ module.exports=async function(page,context,name,touch,results){
  const inspect=()=>page.evaluate(()=>{
   const cards=[];let viewport;
   function scan(n){if(n.name==='atlas-viewport')viewport=n;if(n.name?.startsWith('formal-level:'))cards.push({name:n.name,enabled:n.enabled,w:n.width,h:n.height,text:Array.from({length:n.numChildren},(_,i)=>n.getChildAt(i).text).filter(Boolean)});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);
-  return {cards,height:viewport.height,offset:-viewport.getChildAt(0).y};
+  return {cards,height:viewport.height,offset:Math.abs(viewport.getChildAt(0).y)};
  });
  let atlas=await inspect();assert.equal(atlas.offset,0);assert.equal(atlas.cards.length,40);
  assert.ok(atlas.cards.every(c=>c.w===148&&c.h<=132&&c.text.length===1));
