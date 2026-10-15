@@ -6,31 +6,17 @@ bash /tmp/jade-laya-install.sh
 export PATH="$HOME/.layaair:$PATH"
 layaair install 3.4.0
 layaair list
-layaair --version=3.4.0 create JadeBracelet -t '2D empty project' -p ./official-project -s
-# Bundle the actual tested game modules through the official IDE Web builder.
-cp -R source/dist/js official-project/JadeBracelet/src/bracelet
+# Use the actual checked-in .laya project and its game startup scene.
+(cd source && npm run release:web) | tee .qa/official-build.log
+test -s source/.release-out/web/index.html
+test -s source/.release-out/web/js/bundle.js
+test -s source/.release-out/web/libs/laya.core.js
 python3 - <<'PY'
 from pathlib import Path
-for p in Path('official-project/JadeBracelet/src/bracelet').glob('*.js'):
-    import re
-    p.write_text(re.sub(r'\?v=\d+\.\d+\.\d+', '', p.read_text()))
-entry=Path('official-project/JadeBracelet/src/bracelet/main.js')
-text=entry.read_text()
-start=text.index('boot().catch(e => {')
-entry.write_text(text[:start]+'export { boot };\n')
+import shutil
+target=Path('source/dist')
+if target.exists(): shutil.rmtree(target)
+shutil.copytree('source/.release-out/web',target)
+shutil.copyfile('source/public/libs/LICENSE-LayaAir',target/'libs/LICENSE-LayaAir')
 PY
-printf '%s\n' 'import { boot } from "./bracelet/main.js";' 'export class Main { onStart() { void boot(); } }' > official-project/JadeBracelet/src/Main.ts
-JADE_WEB_OUTPUT="$(pwd)/official-web"
-layaair --version=3.4.0 build web -p ./official-project/JadeBracelet -o "$JADE_WEB_OUTPUT" | tee .qa/official-build.log
-test -s official-web/index.html
-test -s official-web/libs/laya.core.js
-test -s official-web/libs/laya.webgl_2D.js
-# The existing standalone game owns Laya.init and its responsive stage. Keep that
-# startup chain and module worker, with the freshly exported official engine.
-mv source/dist source/compiled-app
-mkdir -p source/dist/libs
-cp -R official-web/libs/. source/dist/libs/
-cp -R source/compiled-app/js source/compiled-app/assets source/dist/
-cp source/compiled-app/index.html source/compiled-app/version.json source/dist/
-cp source/public/libs/LICENSE-LayaAir source/dist/libs/
 node .github/scripts/seal-release.cjs

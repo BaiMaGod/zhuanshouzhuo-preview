@@ -1,15 +1,13 @@
 name: Build, verify and deploy jade game
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       source_ref:
         description: Formal source commit
         required: true
-        default: 'ba65382fb80ba29fffd0973a9f78520ab74e3ef2'
+        default: '6d62d3eb3b7681031a693b79cdbf57f6da6a79d4'
 env:
-  JADE_SOURCE_SHA: 'ba65382fb80ba29fffd0973a9f78520ab74e3ef2'
+  JADE_SOURCE_SHA: '6d62d3eb3b7681031a693b79cdbf57f6da6a79d4'
 permissions:
   contents: read
   pages: write

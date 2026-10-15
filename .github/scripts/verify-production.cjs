@@ -6,13 +6,15 @@ const base=process.env.JADE_URL||'http://127.0.0.1:8080/';
 const results=process.env.JADE_URL?'.qa/public-results':'.qa/results';
 async function hasText(page,text){return page.evaluate(text=>{
  function find(n){if(!n.visible)return false;if(n.text===text)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}
- return !!window.Laya?.stage&&find(Laya.stage);
+ return !document.querySelector('#splash')&&!!window.Laya?.stage&&find(Laya.stage);
 },text)}
 async function waitText(page,text,timeout=60000){await page.waitForFunction(text=>{
  function find(n){if(!n.visible)return false;if(n.text===text)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}
  return !!window.Laya?.stage&&find(Laya.stage);
 },text,{timeout})}
 async function button(page,label,touch){
+ await page.waitForFunction(()=>{function ready(n){if(n.visible&&n.alpha<.99&&n.width===620)return false;for(let i=0;i<n.numChildren;i++)if(!ready(n.getChildAt(i)))return false;return true}return !document.querySelector('#splash')&&!!window.Laya?.stage&&ready(Laya.stage)});
+
  const point=await page.evaluate(label=>{
   function find(n){if(!n.visible)return null;if(label.startsWith('@')?n.name==='button:'+label.slice(1):n.label?.text===label)return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}
   const b=find(Laya.stage);if(!b)throw Error('Missing visible button '+label);
@@ -74,8 +76,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.11.3');assert.equal(provenance.sourceSha,'ba65382fb80ba29fffd0973a9f78520ab74e3ef2');
- await page.goto(base+'?debug&v=0.11.3',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.13.0');assert.equal(provenance.sourceSha,'6d62d3eb3b7681031a693b79cdbf57f6da6a79d4');
+ await page.goto(base+'?debug&v=0.13.0',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -92,7 +94,7 @@ async function run(browser,name,viewport,touch,allLevels){
  assert.equal(await hasText(page,'记住三件小事'),false);
 
  screenshots.push(await shot(page,name+'-guide-turn-v04'));
- await page.waitForFunction(()=>window.__audioQa.decoded===2);
+ await page.waitForFunction(()=>window.__audioQa.decoded>=7);
  const pickA=await page.evaluate(()=>{
   function find(n){if(!n.visible)return null;if(n.text==='A')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
   const ring=find(Laya.stage).parent,p=ring.localToGlobal(new Laya.Point(0,0)),r=document.querySelector('canvas').getBoundingClientRect();
@@ -209,13 +211,13 @@ async function run(browser,name,viewport,touch,allLevels){
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
 (async()=>{
  fs.mkdirSync(results,{recursive:true});fs.rmSync(results+'/report.json',{force:true});
- const browser=await chromium.launch({headless:true,args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-dev-shm-usage']});
+ const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{}),args:['--use-angle=swiftshader','--enable-unsafe-swiftshader','--disable-dev-shm-usage']});
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'ba65382fb80ba29fffd0973a9f78520ab74e3ef2',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'6d62d3eb3b7681031a693b79cdbf57f6da6a79d4',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'ba65382fb80ba29fffd0973a9f78520ab74e3ef2',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'6d62d3eb3b7681031a693b79cdbf57f6da6a79d4',passed:false,error:String(e)},null,2));process.exit(1)});
 
 

@@ -1,19 +1,24 @@
-const fs=require('node:fs'),crypto=require('node:crypto'),cp=require('node:child_process');
-const root='source/dist',entry=root+'/js/main.js';
+const fs=require('node:fs'),crypto=require('node:crypto'),cp=require('node:child_process'),assert=require('node:assert/strict');
+const root='source/dist',entry=root+'/js/bundle.js';
 let source=fs.readFileSync(entry,'utf8');
-const debug=/\n    if \(new URLSearchParams\(location.search\)\.has\('debug'\)\) \{\n        window\.jadeDebug = [^\n]+\n    \}/;
-if(!debug.test(source))throw Error('Unexpected diagnostic entry; release adapter must be reviewed');
-source=source.replace(debug,'');
-if(source.includes('jadeDebug'))throw Error('Diagnostic game object leaked');
+// Strip the optional mutable Web QA bridge before hashing and production tests.
+const startup=/\n      if \(debugEnabled\(\)\) \{\n        exposeDebug\([^\n]+\);\n      \}/;
+assert.ok(startup.test(source),'Official bundle startup must match the reviewed diagnostic adapter');
+source=source.replace(startup,'');
+for(const name of ['debugEnabled','exposeDebug']){
+ const fn=new RegExp('\\n  function '+name+'\\([^\\n]*\\) \\{[\\s\\S]*?\\n  \\}');
+ assert.ok(fn.test(source),'Missing expected optional QA function '+name);source=source.replace(fn,'');
+}
+for(const name of ['jadeDebug','debugEnabled','exposeDebug'])assert.ok(!source.includes(name),'Mutable diagnostic bridge remains: '+name);
 fs.writeFileSync(entry,source);
-let html=fs.readFileSync(root+'/index.html','utf8');
-html=html.replace('<head>','<head><link rel="icon" href="data:,">');
-fs.writeFileSync(root+'/index.html',html);
 const sourceSha=cp.execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
-const version=JSON.parse(fs.readFileSync(root+'/version.json'));
-if(version.version!=='0.11.3'||sourceSha!=='ba65382fb80ba29fffd0973a9f78520ab74e3ef2')throw Error('Wrong game revision');
-fs.writeFileSync(root+'/release.json',JSON.stringify({...version,sourceSha,previewSha:process.env.GITHUB_SHA,build:'Official LayaAir CLI 3.4.0 Web export, standalone game startup adapter'},null,2));
+const version=JSON.parse(fs.readFileSync('source/package.json'));
+assert.equal(sourceSha,'6d62d3eb3b7681031a693b79cdbf57f6da6a79d4');assert.equal(version.version,'0.13.0');
+const info={version:version.version,engine:'LayaAir 3.4.0',teachingLevels:10,formalLevels:100,sourceSha};
+fs.writeFileSync(root+'/version.json',JSON.stringify(info));
+fs.writeFileSync(root+'/release.json',JSON.stringify({...info,previewSha:process.env.GITHUB_SHA,build:'Official checked-in LayaAir 3.4.0 project and startup scene'},null,2));
 fs.writeFileSync(root+'/.nojekyll','');
+fs.rmSync(root+'/_build-evidence.json',{force:true});
 const files={};
 function walk(dir){for(const f of fs.readdirSync(dir,{withFileTypes:true})){const path=dir+'/'+f.name;if(f.isDirectory())walk(path);else{
  if(/\.(ts|md|map|laya)$/.test(f.name))throw Error('Source/document in Web payload: '+path);
@@ -22,4 +27,3 @@ function walk(dir){for(const f of fs.readdirSync(dir,{withFileTypes:true})){cons
 walk(root);
 fs.writeFileSync(root+'/_build-evidence.json',JSON.stringify({sourceSha,engine:'LayaAir 3.4.0',officialBuild:true,browserSmokePassed:false,files},null,2));
 console.log('Sealed official Web build: '+Object.keys(files).length+' SHA256 entries.');
-
