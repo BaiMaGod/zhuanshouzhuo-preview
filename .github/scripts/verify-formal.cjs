@@ -77,7 +77,17 @@ module.exports=async function(page,context,name,touch,results){
  assert.ok(atlas.cards.every(c=>c.w===148&&c.h<=132&&c.text.length===1));
  assert.equal(atlas.cards.find(c=>c.name==='formal-level:2').enabled,false);
  await button(page,'第2关',touch);assert.equal((await inspect()).offset,0);
- await page.mouse.move(200,350);await page.mouse.wheel(0,atlas.height*2);await page.waitForTimeout(150);
+ await page.mouse.move(200,350);
+ const scrollTo=async(target)=>{
+  let ratio=1;
+  for(let attempt=0;attempt<8;attempt++){
+   const before=(await inspect()).offset,remaining=target-before;if(Math.abs(remaining)<.01)return;
+   const input=remaining*ratio;await page.mouse.wheel(0,input);await page.waitForTimeout(150);
+   const moved=(await inspect()).offset-before;if(moved)ratio=Math.abs(input/moved);
+  }
+  assert.ok(Math.abs((await inspect()).offset-target)<.01,'Wheel reaches requested atlas page');
+ };
+ await scrollTo(atlas.height*2);
  atlas=await inspect();assert.equal(atlas.offset,atlas.height*2);assert.ok(atlas.cards.length<=60);
  screenshots.push(await shot(page,results,name+'-atlas-scroll'));
  // A historical non-contiguous record is an explicit compatibility fixture.
@@ -86,7 +96,7 @@ module.exports=async function(page,context,name,touch,results){
  await page.evaluate(()=>{const key='jade-bracelet-laya-v1',save=JSON.parse(localStorage.getItem(key));save.records[54]={steps:54,stars:3};localStorage.setItem(key,JSON.stringify(save));});
  await page.reload({waitUntil:'networkidle'});await button(page,'关卡图谱',touch);
  atlas=await inspect();assert.equal(atlas.offset,0,'Re-entry locates the first unfinished level');
- await page.mouse.move(200,350);await page.mouse.wheel(0,atlas.height*2);await page.waitForTimeout(150);
+ await page.mouse.move(200,350);await scrollTo(atlas.height*2);
  assert.equal((await inspect()).cards.find(c=>c.name==='formal-level:45').enabled,true);
  await button(page,'第45关',touch);await waitText(page,'第45关');
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined);
