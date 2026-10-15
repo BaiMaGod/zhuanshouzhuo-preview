@@ -74,8 +74,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.10.8');assert.equal(provenance.sourceSha,'65f9e857af75f6f7d7021521093bd91fd3163de4');
- await page.goto(base+'?debug&v=0.10.8',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.11.1');assert.equal(provenance.sourceSha,'1cdf8b0e4bd2f00e1c9616b36d33e1c6e72627e1');
+ await page.goto(base+'?debug&v=0.11.1',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -141,7 +141,7 @@ async function run(browser,name,viewport,touch,allLevels){
  if(allLevels)for(let i=1;i<10;i++){
   await button(page,'进入第 '+(i+1)+' 境',touch);await waitText(page,'重开');
   if(i===3||i===4||i===9)screenshots.push(await shot(page,name+'-level'+(i+1)+'-v03'));
-  const path=JSON.parse(fs.readFileSync('source/src/solutions.js','utf8').replace(/^export default /,'').replace(/;\s*$/,''))[i];const session=await context.newCDPSession(page),core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default,expected=core.make(i);for(const a of path){const actual=await verifyFormal.view(page,a.id),adjusted={...a,delta:a.delta+core.diff(core.ring(expected,a.id).a,actual.angle)};core.request(expected,a.id,a.delta);await verifyFormal.turn(page,session,adjusted,touch);assert.equal(await verifyFormal.activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Teaching '+(i+1)+' actual gesture '+a.id);}await waitText(page,i===9?'十境皆通':'这一境，解开了');
+  const path=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/solutions.js')).href)).default[i];const session=await context.newCDPSession(page),core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default,expected=core.make(i);for(const a of path){const actual=await verifyFormal.view(page,a.id),adjusted={...a,delta:a.delta+core.diff(core.ring(expected,a.id).a,actual.angle)};core.request(expected,a.id,a.delta);await verifyFormal.turn(page,session,adjusted,touch);assert.equal(await verifyFormal.activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Teaching '+(i+1)+' actual gesture '+a.id);}await waitText(page,i===9?'十境皆通':'这一境，解开了');
   const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
   assert.ok(save.records[i]);assert.equal(save.unlocked,Math.min(9,i+1));
   console.log(name+': UI progression + real ring gestures cleared level '+(i+1)+'.');
@@ -204,9 +204,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'65f9e857af75f6f7d7021521093bd91fd3163de4',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'1cdf8b0e4bd2f00e1c9616b36d33e1c6e72627e1',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'65f9e857af75f6f7d7021521093bd91fd3163de4',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'1cdf8b0e4bd2f00e1c9616b36d33e1c6e72627e1',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
