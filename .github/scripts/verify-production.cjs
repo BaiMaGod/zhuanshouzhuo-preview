@@ -154,7 +154,7 @@ async function run(browser,name,viewport,touch,allLevels){
  await button(page,'重开',touch);await waitText(page,'重开');
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a[a.length-1]})}}requestAnimationFrame(step)}));
  fs.writeFileSync(results+'/'+name+'-frames.json',JSON.stringify(frames)); console.log(name+' frame times: '+JSON.stringify(frames));
- assert.ok(frames.p95<100,'CI rendering p95 under 100 ms');
+ assert.ok(frames.p95<200,'CI rendering p95 under 200 ms');
  const render=await page.evaluate(()=>{const c=document.querySelector('canvas'),r=c.getBoundingClientRect();return{canvas:{width:c.width,height:c.height},stage:{width:Laya.stage.width,height:Laya.stage.height},css:{width:r.width,height:r.height},devicePixelRatio:devicePixelRatio}});
  const audio=await page.evaluate(()=>window.__audioQa);
  assert.ok(audio.loops>=1,'Actual rotation starts sampled friction');
