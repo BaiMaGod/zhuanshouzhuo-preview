@@ -74,8 +74,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.11.2');assert.equal(provenance.sourceSha,'5096e438200ee2d95c2a300c97089cfba5ab032c');
- await page.goto(base+'?debug&v=0.11.2',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.11.3');assert.equal(provenance.sourceSha,'ba65382fb80ba29fffd0973a9f78520ab74e3ef2');
+ await page.goto(base+'?debug&v=0.11.3',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -167,9 +167,18 @@ async function run(browser,name,viewport,touch,allLevels){
  assert.equal(await hasText(page,'继续解镯'),false);
  await waitText(page,'第1关');
  const before=await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1'));
- await button(page,'新手练习',touch);await waitText(page,'新手 · 1 / 2  找到粉色 B 镯');
+ const resumeChapter=await page.evaluate(()=>{
+  const data=JSON.parse(localStorage.getItem('jade-bracelet-laya-v1'));
+  for(let i=0;i<10;i++)if(!data.records[i])return i+1;
+  return 10; // Completed tutorial: practice replays final level.
+ });
+ await button(page,'新手练习',touch);
+ await page.waitForFunction(ch=>{
+  function find(n){if(n.visible&&typeof n.text==='string'&&n.text.startsWith('教学 '+String(ch).padStart(2,'0')+' 境'))return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}
+  return find(Laya.stage);
+ },resumeChapter);
  assert.equal(await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1')),before,'Practice preserves progress');
- await button(page,'跳过',touch);
+ if(await hasText(page,'跳过'))await button(page,'跳过',touch);
  await button(page,'提示',touch);
  await page.waitForFunction(()=>{
   function find(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(find(n.getChildAt(i)))return true;return false}
@@ -204,9 +213,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'5096e438200ee2d95c2a300c97089cfba5ab032c',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'ba65382fb80ba29fffd0973a9f78520ab74e3ef2',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'5096e438200ee2d95c2a300c97089cfba5ab032c',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'ba65382fb80ba29fffd0973a9f78520ab74e3ef2',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
