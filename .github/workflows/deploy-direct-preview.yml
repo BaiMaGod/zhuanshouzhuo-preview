@@ -1,0 +1,70 @@
+name: Publish verified-build preview directly
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-direct-preview.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: jade-preview-pages-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: df4fd7f0e372c3bbcf63c035e473f7444aa7ae3d
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Typecheck and regression tests
+        working-directory: source
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm test
+      - name: Official LayaAir 3.4 Web build and manifest seal
+        run: bash .github/scripts/build-official.sh
+      - name: Verify packaged entrypoint and exact source
+        run: |
+          set -euo pipefail
+          test -s source/dist/index.html
+          test -s source/dist/js/bundle.js
+          test -s source/dist/libs/laya.core.js
+          node -e "const fs=require('fs'),assert=require('assert');const x=JSON.parse(fs.readFileSync('source/dist/release.json'));assert.equal(x.sourceSha,'df4fd7f0e372c3bbcf63c035e473f7444aa7ae3d');assert.equal(x.version,'0.13.0');"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jade-direct-preview-web
+          path: source/dist
+          include-hidden-files: true
+          retention-days: 7
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: source/dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
+      - name: Verify public preview entrypoint and provenance
+        run: |
+          set -euo pipefail
+          page=https://baimagod.github.io/zhuanshouzhuo-preview/
+          curl -fsSL --retry 8 --retry-delay 8 --retry-all-errors "$page" -o /tmp/jade-preview-index.html
+          curl -fsSL --retry 8 --retry-delay 8 --retry-all-errors "$page/release.json" -o /tmp/jade-preview-release.json
+          node -e "const fs=require('fs'),assert=require('assert');const x=JSON.parse(fs.readFileSync('/tmp/jade-preview-release.json'));assert.equal(x.version,'0.13.0');assert.equal(x.sourceSha,'df4fd7f0e372c3bbcf63c035e473f7444aa7ae3d');assert.match(fs.readFileSync('/tmp/jade-preview-index.html','utf8'),/<html/i);"
