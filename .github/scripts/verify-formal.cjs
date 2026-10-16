@@ -12,7 +12,7 @@ async function waitText(page,label){await page.waitForFunction(label=>{function 
 async function snapshot(page){return page.evaluate(()=>{
  const rings={};function scan(n){if(n.name&&/^ring-id:[1-9][GABCDE]$/.test(n.name))rings[n.name.slice(8)]={angle:n.parent.getChildAt(2).rotation};for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);return rings;
  })}
-async function activeCount(page){return page.evaluate(()=>{let count=null;function scan(n){if(n.text&&/^\d+ (?:手)?镯待解/.test(n.text))count=Number(n.text.match(/^\d+/)[0]);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);if(count===null)throw Error('Missing actual HUD count');return count;});}
+async function activeCount(page){return page.evaluate(()=>{let count=null;function scan(n){if(n.text&&/^剩余\s+\d+\s+个\s+·\s+已转\s+\d+\s+次/.test(n.text))count=Number(n.text.match(/^剩余\s+(\d+)/)[1]);for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);if(count===null)throw Error('Missing actual HUD count');return count;});}
 async function backdropRegistration(page){return page.evaluate(()=>{
  function find(n,predicate){if(predicate(n))return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i),predicate);if(b)return b}return null}
  const ring=find(Laya.stage,n=>n.name==='ring-id:1G').parent,root=ring.parent.parent,bg=find(Laya.stage,n=>n.name==='board-backdrop');if(!bg)throw Error('Missing board artwork camera');
