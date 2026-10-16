@@ -54,7 +54,14 @@ jobs:
         run: |
           set -euo pipefail
           mode=fast
-          previous="$(git show HEAD^:.github/workflows/build-laya-pages.yml 2>/dev/null | sed -n "s/^  JADE_SOURCE_SHA: '\\([0-9a-f]*\\)'$/\\1/p" | head -n 1 || true)"
+          # Use the last successfully deployed release, not the previous preview commit:
+          # multiple workflow-only edits must not silently downgrade a rule change.
+          previous=""
+          release_file="$(mktemp)"
+          if curl --fail --silent --show-error --location --max-time 15 \
+            "https://baimagod.github.io/zhuanshouzhuo-preview/release.json?gate=${{ github.run_id }}" -o "$release_file"; then
+            previous="$(node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(/^[a-f0-9]{40}$/.test(p.sourceSha))process.stdout.write(p.sourceSha)' "$release_file" || true)"
+          fi
           if [[ "${{ inputs.release_mode || 'auto' }}" == "full" || -z "$previous" ]]; then
             mode=full
           elif ! git -C source fetch --no-tags --depth=1 origin "$previous"; then
