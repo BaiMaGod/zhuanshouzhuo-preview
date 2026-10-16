@@ -190,13 +190,12 @@ jobs:
           timeout: 1100000
   public-smoke:
     needs: [build, deploy]
-    if: needs.build.outputs.verification_mode == 'full' || matrix.profile == 'desktop' || matrix.profile == 'mobile'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        profile: [desktop, desktop-wide, mobile, narrow]
+        profile: ${{ fromJSON(needs.build.outputs.profiles) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
