@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       verification_mode: ${{ steps.mode.outputs.verification_mode }}
+      profiles: ${{ steps.mode.outputs.profiles }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -61,11 +62,16 @@ jobs:
           else
             git -C source diff --name-only "$previous" HEAD > /tmp/jade-source-diff.txt || mode=full
             cat /tmp/jade-source-diff.txt || true
-            if grep -Eq '^(src/(core\\.js|main\\.ts|model\\.ts|renderer\\.ts|snap\\.ts|guide\\.ts|levels\\.js|solutions\\.js|formal[^/]*\\.js|types\\.ts)|scripts/(generate-formal-templates\\.mjs|build-platform\\.mjs)|laya/|tests/full/)' /tmp/jade-source-diff.txt; then
+            if grep -Eq '^(src/(core\.js|main\.ts|model\.ts|renderer\.ts|snap\.ts|guide\.ts|levels\.js|solutions\.js|formal[^/]*\.js|types\.ts)|scripts/(generate-formal-templates\.mjs|build-platform\.mjs)|laya/|tests/full/)' /tmp/jade-source-diff.txt; then
               mode=full
             fi
           fi
           echo "verification_mode=$mode" >> "$GITHUB_OUTPUT"
+          if [[ "$mode" == "full" ]]; then
+            echo 'profiles=["desktop","desktop-wide","mobile","narrow"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'profiles=["desktop","mobile"]' >> "$GITHUB_OUTPUT"
+          fi
           echo "Selected verification mode: $mode"
       - name: Install, typecheck and run game regression checks
         working-directory: source
@@ -86,13 +92,12 @@ jobs:
           retention-days: 7
   verify:
     needs: build
-    if: needs.build.outputs.verification_mode == 'full' || matrix.profile == 'desktop' || matrix.profile == 'mobile'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        profile: [desktop, desktop-wide, mobile, narrow]
+        profile: ${{ fromJSON(needs.build.outputs.profiles) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
