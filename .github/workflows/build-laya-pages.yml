@@ -7,9 +7,9 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: 'a9c97d18c164e239ae09d11dfa025787afa93740'
+        default: 'd13d859a856ef9cbf3f43fb05ef899cb9dc4d33b'
 env:
-  JADE_SOURCE_SHA: 'a9c97d18c164e239ae09d11dfa025787afa93740'
+  JADE_SOURCE_SHA: 'd13d859a856ef9cbf3f43fb05ef899cb9dc4d33b'
 permissions:
   contents: read
   pages: write
@@ -29,14 +29,21 @@ jobs:
           ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
           path: source
           persist-credentials: false
+      - name: Cache LayaAir 3.4 SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.layaair
+          key: ${{ runner.os }}-jade-layaair-3.4.0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
       - name: Install, typecheck and run game regression checks
         working-directory: source
         run: |
           set -euo pipefail
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run typecheck
           npm test
       - name: Official LayaAir 3.4 Web build
@@ -54,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [desktop, mobile, narrow]
+        profile: [desktop, desktop-wide, mobile, narrow]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -70,6 +77,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Cache Chromium browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-jade-chromium-playwright-1.62.1
       - name: Browser dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
@@ -107,6 +119,10 @@ jobs:
           path: .qa/desktop
       - uses: actions/download-artifact@v4
         with:
+          name: jade-browser-desktop-wide
+          path: .qa/desktop-wide
+      - uses: actions/download-artifact@v4
+        with:
           name: jade-browser-mobile
           path: .qa/mobile
       - uses: actions/download-artifact@v4
@@ -138,7 +154,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [desktop, mobile, narrow]
+        profile: [desktop, desktop-wide, mobile, narrow]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -150,6 +166,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Cache Chromium browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-jade-chromium-playwright-1.62.1
       - name: Browser dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0

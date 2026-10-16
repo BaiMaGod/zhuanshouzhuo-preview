@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 mkdir -p .qa
-curl -fsSL https://raw.githubusercontent.com/layabox/layaair-cli/master/install.sh -o /tmp/jade-laya-install.sh
-bash /tmp/jade-laya-install.sh
 export PATH="$HOME/.layaair:$PATH"
+# Cached CLI is reused; LayaAir still verifies the pinned SDK version.
+if ! command -v layaair >/dev/null 2>&1; then
+  curl -fsSL https://raw.githubusercontent.com/layabox/layaair-cli/master/install.sh -o /tmp/jade-laya-install.sh
+  bash /tmp/jade-laya-install.sh
+fi
 layaair install 3.4.0
 layaair list
 # Use the actual checked-in .laya project and its game startup scene.

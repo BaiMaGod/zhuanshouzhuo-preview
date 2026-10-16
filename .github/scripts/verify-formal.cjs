@@ -184,7 +184,15 @@ module.exports=async function(page,context,name,touch,results){
  const core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default;
  const stop=core.request(core.make(54),'1A',10);assert.equal(stop.blocked.kind,'captive');
  await turn(page,session,{id:'1A',delta:10,expectBlocked:true},touch);let blocked=await snapshot(page);assert.equal(await activeCount(page),54);
- assert.ok(Math.abs(core.diff(blocked['1A'].angle,before['1A'].angle)-stop.done)<.251,'Real drag stops at the authoritative captive collision');
+ // Save exact measured evidence on every profile, including failed checks.
+ const observed=core.diff(blocked['1A'].angle,before['1A'].angle);
+ const captiveEvidence={profile:name,ring:'1A',input:'real '+(touch?'touch':'mouse'),requested:10,
+  before:before['1A'].angle,after:blocked['1A'].angle,expectedDone:stop.done,
+  observedDone:observed,errorDegrees:observed-stop.done,blocked:stop.blocked};
+ fs.writeFileSync(results+'/'+name+'-captive-stop.json',JSON.stringify(captiveEvidence,null,2));
+ console.log(name+' captive collision: '+JSON.stringify(captiveEvidence));
+ assert.ok(Math.abs(observed-stop.done)<.251,
+  'Real drag stops at the authoritative captive collision: '+JSON.stringify(captiveEvidence));
  await button(page,'重开',touch);assert.deepEqual(await snapshot(page),before);for(let i=0;i<5;i++)await button(page,'+',touch);
  const cacheInfo=await page.evaluate(()=>{function find(n){if(n.name==='ring-id:1G')return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}const ring=find(Laya.stage).parent,viewport=ring.parent.parent.parent,scene=viewport.parent;const rect=n=>{const r=n.getSelfBounds(new Laya.Rectangle(0,0,0,0));return {x:r.x,y:r.y,width:r.width,height:r.height}};return {sceneCache:scene.cacheAs,viewportCache:viewport.cacheAs,sceneBounds:rect(scene),viewportBounds:rect(viewport),dpr:devicePixelRatio,glVersion:document.querySelector('canvas').getContext('webgl')?.getParameter(document.querySelector('canvas').getContext('webgl').VERSION)};});console.log(name+' cache diagnostics: '+JSON.stringify(cacheInfo));
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[],firstEngineFrame=Laya.timer.currFrame;let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a.at(-1),engineFrames:Laya.timer.currFrame-firstEngineFrame})}}requestAnimationFrame(step)}));fs.writeFileSync(results+'/'+name+'-formal-frames.json',JSON.stringify(frames));console.log(name+' 54-ring frame times: '+JSON.stringify(frames));assert.ok(frames.engineFrames>30,'Actual Laya frame loop must keep advancing: '+JSON.stringify(frames));// Browser rAF samples are quantized to 0.1ms; P95 values near 200ms may quantize to 200.0ms.
