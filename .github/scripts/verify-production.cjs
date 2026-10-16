@@ -76,7 +76,7 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.14.5');assert.equal(provenance.sourceSha,'f0c0f935ce989ba959f4882b8ffb86ee4afa39e4');
+ const provenance=await release.json();assert.equal(provenance.version,'0.14.5');assert.equal(provenance.sourceSha,'fe483aa71fbade44989b895e48cfb015fb6f7986');
  await page.goto(base+'?debug&v=0.14.5',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
@@ -215,9 +215,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'f0c0f935ce989ba959f4882b8ffb86ee4afa39e4',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'fe483aa71fbade44989b895e48cfb015fb6f7986',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'f0c0f935ce989ba959f4882b8ffb86ee4afa39e4',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'fe483aa71fbade44989b895e48cfb015fb6f7986',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
