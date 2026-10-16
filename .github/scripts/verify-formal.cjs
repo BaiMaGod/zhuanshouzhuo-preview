@@ -223,7 +223,7 @@ module.exports=async function(page,context,name,touch,results){
  await page.evaluate(()=>new Promise(resolve=>{let remaining=30;function frame(){if(--remaining===0)resolve();else requestAnimationFrame(frame)}requestAnimationFrame(frame)}));
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[],firstEngineFrame=Laya.timer.currFrame;let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a.at(-1),engineFrames:Laya.timer.currFrame-firstEngineFrame})}}requestAnimationFrame(step)}));fs.writeFileSync(results+'/'+name+'-formal-frames.json',JSON.stringify(frames));console.log(name+' 54-ring frame times: '+JSON.stringify(frames));assert.ok(frames.engineFrames>30,'Actual Laya frame loop must keep advancing: '+JSON.stringify(frames));// Browser rAF samples are quantized to 0.1ms; P95 values near 200ms may quantize to 200.0ms.
  assert.ok(frames.p95<=200.5,'54-ring rendering p95 within 200ms plus 0.5ms timer tolerance: '+JSON.stringify(frames));
- const expected=core.make(54),smokeActions=process.env.JADE_PUBLIC_SMOKE==='true'?4:route.length;
+ const expected=core.make(54),shortRoute=process.env.JADE_PUBLIC_SMOKE==='true'||process.env.JADE_VERIFY_MODE==='fast',smokeActions=shortRoute?4:route.length;
  for(let i=0;i<smokeActions;i++){
   if(i===1){const beforeHint=await snapshot(page);await button(page,'提示 ×1',touch);await page.waitForFunction(()=>{function walk(n){if(n.zOrder===25&&n.scrollRect&&n.numChildren===1&&n.getChildAt(0).visible)return true;for(let i=0;i<n.numChildren;i++)if(walk(n.getChildAt(i)))return true;return false}return walk(Laya.stage)},null,{timeout:20000});assert.deepEqual(await snapshot(page),beforeHint,'Progress hint stays read-only');}
   core.request(expected,route[i].id,route[i].delta);await turn(page,session,route[i],touch);
@@ -232,12 +232,12 @@ module.exports=async function(page,context,name,touch,results){
   if(i===0)assertRegistered(await backdropRegistration(page),artwork);
   if(i%6===5)console.log(name+' formal real gestures: '+(i+1)+' / '+route.length);
  }
- if(process.env.JADE_PUBLIC_SMOKE==='true'){await button(page,'重开',touch);assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'第1关');return {rings:54,rods:62,actions:4,fullRoute:false,frames,screenshots,pinch:touch,wheel:!touch,passed:true};}
+ if(shortRoute){await button(page,'重开',touch);assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'第1关');return {rings:54,rods:62,actions:4,fullRoute:false,frames,screenshots,pinch:touch,wheel:!touch,passed:true};}
  await waitText(page,'第45关 · 全部解开');const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
  assert.ok(save.records[54]);assert.equal(save.records[54].steps,route.length);screenshots.push(await shot(page,results,name+'-formal-win'));
  await button(page,'再挑战一次',touch);await waitText(page,'第45关');assert.equal(await activeCount(page),54);screenshots.push(await shot(page,results,name+'-formal-restart'));
  await button(page,'回到首页',touch);await page.reload({waitUntil:'networkidle'});await waitText(page,'第1关');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).records[54].steps),route.length);
- return {rings:54,rods:62,actions:route.length,frames,screenshots,pinch:touch,wheel:!touch,passed:true};
+ return {rings:54,rods:62,actions:route.length,fullRoute:true,frames,screenshots,pinch:touch,wheel:!touch,passed:true};
 };
 
 module.exports.turn=turn;

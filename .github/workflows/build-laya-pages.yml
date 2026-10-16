@@ -7,9 +7,13 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: 'fe483aa71fbade44989b895e48cfb015fb6f7986'
+        default: '6a18b9caa538e6d2a9390ed43fc675d115abd660'
+      release_mode:
+        description: 'auto detects rule changes; full forces exhaustive verification'
+        required: false
+        default: 'auto'
 env:
-  JADE_SOURCE_SHA: 'fe483aa71fbade44989b895e48cfb015fb6f7986'
+  JADE_SOURCE_SHA: '6a18b9caa538e6d2a9390ed43fc675d115abd660'
 permissions:
   contents: read
   pages: write
@@ -20,9 +24,13 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      verification_mode: ${{ steps.mode.outputs.verification_mode }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
       - uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
@@ -39,13 +47,35 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: source/package-lock.json
+      - name: Select mandatory quality gate
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode=fast
+          previous="$(git show HEAD^:.github/workflows/build-laya-pages.yml 2>/dev/null | sed -n "s/^  JADE_SOURCE_SHA: '\\([0-9a-f]*\\)'$/\\1/p" | head -n 1 || true)"
+          if [[ "${{ inputs.release_mode || 'auto' }}" == "full" || -z "$previous" ]]; then
+            mode=full
+          elif ! git -C source fetch --no-tags --depth=1 origin "$previous"; then
+            mode=full
+          else
+            git -C source diff --name-only "$previous" HEAD > /tmp/jade-source-diff.txt || mode=full
+            cat /tmp/jade-source-diff.txt || true
+            if grep -Eq '^(src/(core\\.js|main\\.ts|model\\.ts|renderer\\.ts|snap\\.ts|guide\\.ts|levels\\.js|solutions\\.js|formal[^/]*\\.js|types\\.ts)|scripts/(generate-formal-templates\\.mjs|build-platform\\.mjs)|laya/|tests/full/)' /tmp/jade-source-diff.txt; then
+              mode=full
+            fi
+          fi
+          echo "verification_mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Selected verification mode: $mode"
       - name: Install, typecheck and run game regression checks
         working-directory: source
+        env:
+          JADE_VERIFY_MODE: ${{ steps.mode.outputs.verification_mode }}
         run: |
           set -euo pipefail
           npm ci --no-audit --no-fund
           npm run typecheck
-          npm test
+          if [[ "$JADE_VERIFY_MODE" == "full" ]]; then npm run test:full; else npm run test:fast; fi
       - name: Official LayaAir 3.4 Web build
         run: bash .github/scripts/build-official.sh
       - uses: actions/upload-artifact@v4
@@ -56,6 +86,7 @@ jobs:
           retention-days: 7
   verify:
     needs: build
+    if: needs.build.outputs.verification_mode == 'full' || matrix.profile == 'desktop' || matrix.profile == 'mobile'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -86,9 +117,10 @@ jobs:
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
           .qa/node_modules/.bin/playwright install --with-deps chromium
-      - name: Real input, full formal route and teaching regression
+      - name: Real input and formal route regression
         env:
           JADE_PROFILE: ${{ matrix.profile }}
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
         run: |
           set -euo pipefail
           python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
@@ -101,7 +133,7 @@ jobs:
           path: .qa/results
           retention-days: 7
   deploy:
-    needs: verify
+    needs: [build, verify]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
@@ -118,6 +150,7 @@ jobs:
           name: jade-browser-desktop
           path: .qa/desktop
       - uses: actions/download-artifact@v4
+        if: needs.build.outputs.verification_mode == 'full'
         with:
           name: jade-browser-desktop-wide
           path: .qa/desktop-wide
@@ -126,10 +159,13 @@ jobs:
           name: jade-browser-mobile
           path: .qa/mobile
       - uses: actions/download-artifact@v4
+        if: needs.build.outputs.verification_mode == 'full'
         with:
           name: jade-browser-narrow
           path: .qa/narrow
       - name: Fail-closed evidence and payload verification
+        env:
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
         run: node .github/scripts/accept-smoke.cjs
       - uses: actions/upload-artifact@v4
         with:
@@ -148,7 +184,8 @@ jobs:
           artifact_name: jade-pages-${{ github.run_attempt }}
           timeout: 1100000
   public-smoke:
-    needs: deploy
+    needs: [build, deploy]
+    if: needs.build.outputs.verification_mode == 'full' || matrix.profile == 'desktop' || matrix.profile == 'mobile'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -179,6 +216,7 @@ jobs:
         env:
           JADE_PROFILE: ${{ matrix.profile }}
           JADE_PUBLIC_SMOKE: 'true'
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
           JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
         run: |
           set -euo pipefail
