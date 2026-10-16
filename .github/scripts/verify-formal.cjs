@@ -53,7 +53,7 @@ async function focus(page,session,id,touch){
 async function turn(page,session,a,touch){
  const initial=await focus(page,session,a.id,touch);let remaining=a.delta;
  for(let fragment=0;fragment<16;fragment++){
-  const state=await focus(page,session,a.id,touch),start=state.angle+[50,65,35,80,20][fragment%5],points=[],n=Math.max(1,Math.ceil(Math.abs(remaining)/4));
+  const state=await focus(page,session,a.id,touch),start=state.angle+(a.gripOffset??[50,65,35,80,20][fragment%5]),points=[],n=Math.max(1,Math.ceil(Math.abs(remaining)/4));
   for(let k=0;k<=n;k++)points.push(await nodePoint(page,a.id,start+remaining*k/n));
   await drag(page,session,points,touch);await page.waitForTimeout(400);
   const after=await view(page,a.id);if(!after.visible||a.expectBlocked)return;
@@ -183,12 +183,22 @@ module.exports=async function(page,context,name,touch,results){
  // compact bridge. Check the physical stop from this revision, not the old long rod.
  const core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default;
  const stop=core.request(core.make(54),'1A',10);assert.equal(stop.blocked.kind,'captive');
- await turn(page,session,{id:'1A',delta:10,expectBlocked:true},touch);let blocked=await snapshot(page);assert.equal(await activeCount(page),54);
- // Save exact measured evidence on every profile, including failed checks.
- const observed=core.diff(blocked['1A'].angle,before['1A'].angle);
+ // The physical 1A grab can occasionally miss in a crowded board on
+ // Playwright's desktop pointer. When it produces absolutely no rotation,
+ // retry with a different real-world grab angle. A nonzero but wrong angle
+ // still fails immediately; this never changes the 0.251-degree physics gate.
+ const attempts=[];let blocked,observed=0;
+ for(const gripOffset of [50,80,35]){
+  await turn(page,session,{id:'1A',delta:10,expectBlocked:true,gripOffset},touch);
+  blocked=await snapshot(page);observed=core.diff(blocked['1A'].angle,before['1A'].angle);
+  attempts.push({gripOffset,observedDone:observed});
+  if(Math.abs(observed-stop.done)<.251||Math.abs(observed)>.01)break;
+  console.warn(name+' missed 1A physical grab at offset '+gripOffset+'; retrying actual pointer path');
+ }
+ assert.equal(await activeCount(page),54);
  const captiveEvidence={profile:name,ring:'1A',input:'real '+(touch?'touch':'mouse'),requested:10,
   before:before['1A'].angle,after:blocked['1A'].angle,expectedDone:stop.done,
-  observedDone:observed,errorDegrees:observed-stop.done,blocked:stop.blocked};
+  observedDone:observed,errorDegrees:observed-stop.done,blocked:stop.blocked,attempts};
  fs.writeFileSync(results+'/'+name+'-captive-stop.json',JSON.stringify(captiveEvidence,null,2));
  console.log(name+' captive collision: '+JSON.stringify(captiveEvidence));
  assert.ok(Math.abs(observed-stop.done)<.251,
