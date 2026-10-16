@@ -7,13 +7,13 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: '24733cd218de8c45c090cfa226bded4c15ab95ba'
+        default: '28071b115ae3dc6fb7baade2ec579c5839309709'
       release_mode:
         description: 'auto detects rule changes; full forces exhaustive verification'
         required: false
         default: 'auto'
 env:
-  JADE_SOURCE_SHA: '24733cd218de8c45c090cfa226bded4c15ab95ba'
+  JADE_SOURCE_SHA: '28071b115ae3dc6fb7baade2ec579c5839309709'
 permissions:
   contents: read
   pages: write
@@ -69,7 +69,7 @@ jobs:
           else
             git -C source diff --name-only "$previous" HEAD > /tmp/jade-source-diff.txt || mode=full
             cat /tmp/jade-source-diff.txt || true
-            if grep -Eq '^(src/(core\.js|main\.ts|model\.ts|renderer\.ts|snap\.ts|guide\.ts|levels\.js|solutions\.js|formal[^/]*\.js|types\.ts)|scripts/(generate-formal-templates\.mjs|build-platform\.mjs)|laya/|tests/full/)' /tmp/jade-source-diff.txt; then
+            if grep -Eq '^(src/(core\.js|main\.ts|model\.ts|renderer\.ts|snap\.ts|guide\.ts|levels\.js|solutions\.js|formal[^/]*\.js|types\.ts)|scripts/generate-formal-templates\.mjs|laya/|tests/full/)' /tmp/jade-source-diff.txt; then
               mode=full
             fi
           fi

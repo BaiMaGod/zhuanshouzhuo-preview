@@ -47,7 +47,7 @@ async function checkJadePixels(page,viewport){
 async function run(browser,name,viewport,touch,allLevels){
  const context=await browser.newContext({viewport,hasTouch:touch,isMobile:touch,deviceScaleFactor:touch?2:1});
  await context.addInitScript(()=>{
-  const stats=window.__audioQa={started:0,loops:0,activeLoops:0,hits:0,decoded:0,peak:0,currentPeak:0};
+  const stats=window.__audioQa={started:0,loops:0,activeLoops:0,hits:0,ratchetTicks:0,decoded:0,peak:0,currentPeak:0};
   const nativeConnect=AudioNode.prototype.connect;
   AudioNode.prototype.connect=function(target,...args){
    const ctx=this.context;
@@ -64,7 +64,7 @@ async function run(browser,name,viewport,touch,allLevels){
   };
   const start=AudioBufferSourceNode.prototype.start;
   AudioBufferSourceNode.prototype.start=function(...args){
-   stats.started++;if(this.loop){stats.loops++;stats.activeLoops++;this.addEventListener('ended',()=>stats.activeLoops--,{once:true})}else stats.hits++;
+   stats.started++;if(this.loop){stats.loops++;stats.activeLoops++;this.addEventListener('ended',()=>stats.activeLoops--,{once:true})}else{stats.hits++;const d=this.buffer?.duration;if(d>.105&&d<.130)stats.ratchetTicks++;}
    return start.apply(this,args);
   };
   const decode=BaseAudioContext.prototype.decodeAudioData;
@@ -76,8 +76,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.14.5');assert.equal(provenance.sourceSha,'24733cd218de8c45c090cfa226bded4c15ab95ba');
- await page.goto(base+'?debug&v=0.14.5',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.14.6');assert.equal(provenance.sourceSha,'28071b115ae3dc6fb7baade2ec579c5839309709');
+ await page.goto(base+'?debug&v=0.14.6',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
@@ -157,7 +157,8 @@ async function run(browser,name,viewport,touch,allLevels){
  assert.ok(frames.p95<200,'CI rendering p95 under 200 ms');
  const render=await page.evaluate(()=>{const c=document.querySelector('canvas'),r=c.getBoundingClientRect();return{canvas:{width:c.width,height:c.height},stage:{width:Laya.stage.width,height:Laya.stage.height},css:{width:r.width,height:r.height},devicePixelRatio:devicePixelRatio}});
  const audio=await page.evaluate(()=>window.__audioQa);
- assert.ok(audio.loops>=1,'Actual rotation starts sampled friction');
+ assert.equal(audio.loops,0,'Recorded ratchet ticks must not start a looping motor');
+  assert.ok(audio.ratchetTicks>=1,'Real bracelet rotation starts the recorded ratchet tick');
  assert.ok(audio.hits>=2,'Collision and clear emit sampled material sounds');
  assert.ok(audio.peak>.001,'Audio graph delivers nonzero sound signal');
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
@@ -215,9 +216,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'&&process.env.JADE_VERIFY_MODE!=='fast'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'24733cd218de8c45c090cfa226bded4c15ab95ba',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'28071b115ae3dc6fb7baade2ec579c5839309709',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'24733cd218de8c45c090cfa226bded4c15ab95ba',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'28071b115ae3dc6fb7baade2ec579c5839309709',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
