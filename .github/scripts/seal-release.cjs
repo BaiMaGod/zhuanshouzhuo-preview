@@ -13,7 +13,7 @@ for(const name of ['jadeDebug','debugEnabled','exposeDebug'])assert.ok(!source.i
 fs.writeFileSync(entry,source);
 const sourceSha=cp.execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const version=JSON.parse(fs.readFileSync('source/package.json'));
-assert.equal(sourceSha,'2e8cdae597abe4c01e5ea91140eeb1a46dd680d8');assert.equal(version.version,'0.14.8');
+assert.equal(sourceSha,'4c1534bfa27e6539705b7063fcc30ee5b84cef79');assert.equal(version.version,'0.14.9');
 const info={version:version.version,engine:'LayaAir 3.4.0',teachingLevels:10,formalLevels:100,sourceSha};
 fs.writeFileSync(root+'/version.json',JSON.stringify(info));
 fs.writeFileSync(root+'/release.json',JSON.stringify({...info,previewSha:process.env.GITHUB_SHA,build:'Official checked-in LayaAir 3.4.0 project and startup scene'},null,2));
