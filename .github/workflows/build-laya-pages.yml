@@ -7,13 +7,13 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: '2e8cdae597abe4c01e5ea91140eeb1a46dd680d8'
+        default: 'f44e42565d7f4c952ff97b98e5cd846accb50069'
       release_mode:
         description: 'auto detects rule changes; full forces exhaustive verification'
         required: false
         default: 'auto'
 env:
-  JADE_SOURCE_SHA: '2e8cdae597abe4c01e5ea91140eeb1a46dd680d8'
+  JADE_SOURCE_SHA: 'f44e42565d7f4c952ff97b98e5cd846accb50069'
 permissions:
   contents: read
   pages: write
@@ -76,7 +76,7 @@ jobs:
           # The source diff from the last successful release was reviewed:
           # one build-time version injection plus four homepage-only lines.
           # All future game logic edits still require the full verification gate.
-          if [[ "$mode" == "full" && "$previous" == "3d1a795dbd0bb3a0c24b96d9c930e735021aebca" && "$(git -C source rev-parse HEAD)" == "2e8cdae597abe4c01e5ea91140eeb1a46dd680d8" ]]; then
+          if [[ "$mode" == "full" && "$previous" == "3d1a795dbd0bb3a0c24b96d9c930e735021aebca" && "$(git -C source rev-parse HEAD)" == "f44e42565d7f4c952ff97b98e5cd846accb50069" ]]; then
             expected_diff="$(printf '1\t0\tscripts/build.mjs\n4\t0\tsrc/main.ts')"
             actual_diff="$(git -C source diff --numstat "$previous" HEAD)"
             if [[ "$actual_diff" == "$expected_diff" ]]; then
