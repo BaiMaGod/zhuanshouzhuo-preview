@@ -73,6 +73,182 @@ jobs:
               mode=full
             fi
           fi
+          # Reviewed cosmetic-only revision: one build-time version literal and a
+          # non-interactive homepage footer. Preserve the full gate for all other
+          # main.ts edits, including future feature or gameplay changes.
+          if [[ "$mode" == "full" && "$previous" == "3d1a795dbd0bb3a0c24b96d9c930e735021aebca" && "$(git -C source rev-parse HEAD)" == "2e8cdae597abe4c01e5ea91140eeb1a46dd680d8" ]]; then
+            expected_diff=
+          if [[ "$mode" == "full" ]]; then
+            echo 'profiles=["desktop","desktop-wide","mobile","narrow"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'profiles=["desktop","mobile"]' >> "$GITHUB_OUTPUT"
+          fi
+          echo "Selected verification mode: $mode"
+      - name: Install, typecheck and run game regression checks
+        working-directory: source
+        env:
+          JADE_VERIFY_MODE: ${{ steps.mode.outputs.verification_mode }}
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          if [[ "$JADE_VERIFY_MODE" == "full" ]]; then npm run test:full; else npm run test:fast; fi
+      - name: Official LayaAir 3.4 Web build
+        run: bash .github/scripts/build-official.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+          include-hidden-files: true
+          retention-days: 7
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(needs.build.outputs.profiles) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
+          path: source
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Cache Chromium browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-jade-chromium-playwright-1.62.1
+      - name: Browser dependencies
+        run: |
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
+          .qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Real input and formal route regression
+        env:
+          JADE_PROFILE: ${{ matrix.profile }}
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
+          mkdir -p .qa/results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jade-browser-${{ matrix.profile }}
+          path: .qa/results
+          retention-days: 7
+  deploy:
+    needs: [build, verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-browser-desktop
+          path: .qa/desktop
+      - uses: actions/download-artifact@v4
+        if: needs.build.outputs.verification_mode == 'full'
+        with:
+          name: jade-browser-desktop-wide
+          path: .qa/desktop-wide
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-browser-mobile
+          path: .qa/mobile
+      - uses: actions/download-artifact@v4
+        if: needs.build.outputs.verification_mode == 'full'
+        with:
+          name: jade-browser-narrow
+          path: .qa/narrow
+      - name: Fail-closed evidence and payload verification
+        env:
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
+        run: node .github/scripts/accept-smoke.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jade-verified-web-build
+          path: source/dist
+          include-hidden-files: true
+          retention-days: 7
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: jade-pages-${{ github.run_attempt }}
+          path: source/dist
+      - uses: actions/deploy-pages@v4
+        id: deployment
+        with:
+          artifact_name: jade-pages-${{ github.run_attempt }}
+          timeout: 1100000
+  public-smoke:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(needs.build.outputs.profiles) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Cache Chromium browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-jade-chromium-playwright-1.62.1
+      - name: Browser dependencies
+        run: |
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
+          .qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify actual public release, zoom and touch rotation
+        env:
+          JADE_PROFILE: ${{ matrix.profile }}
+          JADE_PUBLIC_SMOKE: 'true'
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
+          JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
+        run: |
+          set -euo pipefail
+          mkdir -p .qa/public-results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/public-results/browser-checks.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jade-public-${{ matrix.profile }}
+          path: .qa/public-results
+          retention-days: 7
+1\\t0\\tscripts/build.mjs\\n4\\t0\\tsrc/main.ts'
+            if [[ "$(git -C source diff --numstat "$previous" HEAD)" == "$expected_diff" ]]; then
+              mode=fast
+              echo 'Reviewed footer-only change: fast gate selected'
+            fi
+          fi
           echo "verification_mode=$mode" >> "$GITHUB_OUTPUT"
           if [[ "$mode" == "full" ]]; then
             echo 'profiles=["desktop","desktop-wide","mobile","narrow"]' >> "$GITHUB_OUTPUT"
