@@ -7,13 +7,13 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: '02f0c2673ede56122084995fa437a20a252e6177'
+        default: 'ab4d4661d43e528635ae48fe5d71b84b5f6707a8'
       release_mode:
         description: 'auto detects rule changes; full forces exhaustive verification'
         required: false
         default: 'auto'
 env:
-  JADE_SOURCE_SHA: '02f0c2673ede56122084995fa437a20a252e6177'
+  JADE_SOURCE_SHA: 'ab4d4661d43e528635ae48fe5d71b84b5f6707a8'
 permissions:
   contents: read
   pages: write
@@ -99,7 +99,12 @@ jobs:
           set -euo pipefail
           npm ci --no-audit --no-fund
           npm run typecheck
-          if [[ "$JADE_VERIFY_MODE" == "full" ]]; then npm run test:full; else npm run test:fast; fi
+          npm run build
+          # Fail quickly on UI/unit regressions before the 100-level exhaustive solver gate.
+          node --test tests/*.test.mjs
+          if [[ "$JADE_VERIFY_MODE" == "full" ]]; then
+            node --test tests/full/*.test.mjs
+          fi
       - name: Official LayaAir 3.4 Web build
         run: bash .github/scripts/build-official.sh
       - uses: actions/upload-artifact@v4
