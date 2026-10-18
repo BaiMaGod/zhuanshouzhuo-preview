@@ -1,0 +1,48 @@
+name: QA formal archetypes browser v0.16 (no deploy)
+on:
+  push:
+    branches: [qa/formal-browser-v016]
+permissions:
+  contents: read
+concurrency:
+  group: qa-formal-browser-v016
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: a650e93667d7c41c47e87130a063df64bec96e21
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - name: Install and build
+        working-directory: source
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run build
+          npm install --no-save --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
+      - name: Install Chromium
+        working-directory: source
+        run: npx playwright install --with-deps chromium
+      - name: Real mouse/touch and menu smoke
+        working-directory: source
+        run: |
+          set -euo pipefail
+          node tests/browser-buttons.mjs
+          node tests/browser-campaign.mjs
+          node tests/browser-input.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: formal-archetypes-browser-qa
+          path: source/tests/results/
+          retention-days: 5
