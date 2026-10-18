@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BaiMaGod/zhuanshouzhuo
-          ref: 633c91bdb37b43be0d8800cf5751f8f13641314f
+          ref: a650e93667d7c41c47e87130a063df64bec96e21
           path: source
           persist-credentials: false
       - uses: actions/setup-node@v4
