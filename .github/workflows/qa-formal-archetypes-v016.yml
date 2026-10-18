@@ -1,0 +1,41 @@
+name: QA formal archetypes v0.16 (no deploy)
+on:
+  push:
+    branches: [qa/formal-archetypes-v016]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: qa-formal-archetypes-v016
+  cancel-in-progress: true
+jobs:
+  unit-and-physical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: 633c91bdb37b43be0d8800cf5751f8f13641314f
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - name: Install project
+        working-directory: source
+        run: npm ci --no-audit --no-fund
+      - name: TypeScript typecheck
+        working-directory: source
+        run: npm run typecheck
+      - name: Build LayaAir Web source
+        working-directory: source
+        run: npm run build
+      - name: Unit and UI harness tests
+        working-directory: source
+        run: node --test tests/*.test.mjs
+      - name: Full 100-level authoritative continuous physical routes
+        working-directory: source
+        run: node --test tests/full/*.test.mjs
