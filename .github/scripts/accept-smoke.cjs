@@ -2,7 +2,7 @@ const fs=require('node:fs'),crypto=require('node:crypto'),assert=require('node:a
 const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path)),profiles=[];
 const mode=process.env.JADE_VERIFY_MODE||'full';
 assert.ok(['fast','full'].includes(mode),'Unknown verification mode: '+mode);
-const names=mode==='full'?['desktop','desktop-wide','mobile','narrow']:['desktop','mobile'];
+const names=mode==='full'?['desktop','desktop-wide','mobile','narrow']:['desktop','mobile','narrow'];
 for(const name of names){
  const r=JSON.parse(fs.readFileSync('.qa/'+name+'/report.json'));
  assert.equal(r.passed,true);assert.equal(r.sourceSha,e.sourceSha);assert.equal(r.verificationMode,mode);assert.equal(r.profiles.length,1);

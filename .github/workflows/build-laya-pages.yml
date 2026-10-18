@@ -7,13 +7,13 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: '02dda87f3dd231eac3b41f5a24987043d115734b'
+        default: 'b581ff38f3473eb99cd6cd05f50f1865f30570e8'
       release_mode:
         description: 'auto detects rule changes; full forces exhaustive verification'
         required: false
         default: 'auto'
 env:
-  JADE_SOURCE_SHA: '02dda87f3dd231eac3b41f5a24987043d115734b'
+  JADE_SOURCE_SHA: 'b581ff38f3473eb99cd6cd05f50f1865f30570e8'
 permissions:
   contents: read
   pages: write
@@ -88,7 +88,7 @@ jobs:
           if [[ "$mode" == "full" ]]; then
             echo 'profiles=["desktop","desktop-wide","mobile","narrow"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'profiles=["desktop","mobile"]' >> "$GITHUB_OUTPUT"
+            echo 'profiles=["desktop","mobile","narrow"]' >> "$GITHUB_OUTPUT"
           fi
           echo "Selected verification mode: $mode"
       - name: Install, typecheck and run game regression checks
@@ -187,7 +187,6 @@ jobs:
           name: jade-browser-mobile
           path: .qa/mobile
       - uses: actions/download-artifact@v4
-        if: needs.build.outputs.verification_mode == 'full'
         with:
           name: jade-browser-narrow
           path: .qa/narrow
