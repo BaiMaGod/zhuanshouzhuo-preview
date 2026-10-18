@@ -76,10 +76,10 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.14.9');assert.equal(provenance.sourceSha,'26dbbaed5e1983095c44dfefafc15be8b6ed7f98');
- await page.goto(base+'?debug&v=0.14.9',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.15.0');assert.equal(provenance.sourceSha,'8c461564e9c0bf4574aff5d65e22905b64b62d93');
+ await page.goto(base+'?debug&v=0.15.0',{waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
- await waitText(page,'v0.14.9 @雨过天青',30000);
+ await waitText(page,'v0.15.0 @雨过天青',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
  for(const hidden of ['继续解镯','开始解镯','玉  环  十  境','转一转，环环相扣','一扣入门 · 十境解谜'])assert.equal(await hasText(page,hidden),false,'Removed home copy: '+hidden);
@@ -217,9 +217,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'&&process.env.JADE_VERIFY_MODE!=='fast'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'26dbbaed5e1983095c44dfefafc15be8b6ed7f98',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'8c461564e9c0bf4574aff5d65e22905b64b62d93',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'26dbbaed5e1983095c44dfefafc15be8b6ed7f98',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'8c461564e9c0bf4574aff5d65e22905b64b62d93',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
