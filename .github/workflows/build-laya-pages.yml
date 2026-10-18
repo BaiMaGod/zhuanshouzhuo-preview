@@ -50,6 +50,8 @@ jobs:
           cache-dependency-path: source/package-lock.json
       - name: Select mandatory quality gate
         id: mode
+        env:
+          JADE_REQUEST_FULL: ${{ startsWith(github.event.head_commit.message, 'deploy(full):') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -62,7 +64,7 @@ jobs:
             "https://baimagod.github.io/zhuanshouzhuo-preview/release.json?gate=${{ github.run_id }}" -o "$release_file"; then
             previous="$(node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));if(/^[a-f0-9]{40}$/.test(p.sourceSha))process.stdout.write(p.sourceSha)' "$release_file" || true)"
           fi
-          if [[ "${{ inputs.release_mode || 'auto' }}" == "full" || -z "$previous" ]]; then
+          if [[ "${{ inputs.release_mode || 'auto' }}" == "full" || "${JADE_REQUEST_FULL:-false}" == "true" || -z "$previous" ]]; then
             mode=full
           elif ! git -C source fetch --no-tags --depth=1 origin "$previous"; then
             mode=full
