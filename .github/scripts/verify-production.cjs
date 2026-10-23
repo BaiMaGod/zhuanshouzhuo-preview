@@ -76,8 +76,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.15.0');assert.equal(provenance.sourceSha,'b581ff38f3473eb99cd6cd05f50f1865f30570e8');
- await page.goto(base+'?debug&v=0.15.0',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.15.5');assert.equal(provenance.sourceSha,'0b618f23f35f7bee1a14985c582b3beed4744bae');
+ await page.goto(base+'?debug&v=0.15.5',{waitUntil:'networkidle'});
  // A new player starts in the playable first tutorial, not the home menu.
  await waitText(page,'新手 · 1 / 2  找到粉色 B 镯',30000);
  assert.equal(await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1-tutorial-opened')),'1','The first-visit marker must persist');
@@ -87,9 +87,25 @@ async function run(browser,name,viewport,touch,allLevels){
  // Relaunch must respect the stored onboarding marker and return to home.
  await page.reload({waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
- await waitText(page,'v0.15.0 @雨过天青',30000);
+ await waitText(page,'v0.15.5 @雨过天青',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
+ // Sign-in and permanent bag: side-edge placement and modal interaction
+ const shortcutPositions=await page.evaluate(()=>{
+  const found={};function walk(n){if(n.visible&&['button:signin','button:bag'].includes(n.name))found[n.name]={x:n.x,y:n.y,w:n.width,h:n.height};if(n.visible&&n.name?.startsWith('button:第')&&n.label?.text?.includes('关'))found.play={x:n.x,y:n.y,w:n.width,h:n.height};for(let i=0;i<n.numChildren;i++)walk(n.getChildAt(i));}walk(Laya.stage);return found;
+ });
+ assert.ok(shortcutPositions['button:signin']&&shortcutPositions['button:bag']&&shortcutPositions.play,'Both home shortcuts and main play button must exist');
+ assert.equal(shortcutPositions['button:signin'].x,12);
+ assert.equal(shortcutPositions['button:bag'].x+shortcutPositions['button:bag'].w,708);
+ assert.equal(shortcutPositions['button:signin'].y,shortcutPositions['button:bag'].y);
+ assert.ok(shortcutPositions['button:signin'].y+shortcutPositions['button:signin'].h<shortcutPositions.play.y,'Shortcuts must be above the play button');
+ await button(page,'@signin',touch);await waitText(page,'每日签到');
+ screenshots.push(await shot(page,name+'-sign-in'));
+ await button(page,'@close-feature',touch);
+ await button(page,'@bag',touch);await waitText(page,'我的背包');
+ screenshots.push(await shot(page,name+'-bag'));
+ await button(page,'@close-bag',touch);
+ 
  for(const hidden of ['继续解镯','开始解镯','玉  环  十  境','转一转，环环相扣','一扣入门 · 十境解谜'])assert.equal(await hasText(page,hidden),false,'Removed home copy: '+hidden);
  await button(page,'新手练习',touch);
  await waitText(page,'新手 · 1 / 2  找到粉色 B 镯');
@@ -225,9 +241,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'&&process.env.JADE_VERIFY_MODE!=='fast'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'b581ff38f3473eb99cd6cd05f50f1865f30570e8',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'0b618f23f35f7bee1a14985c582b3beed4744bae',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'b581ff38f3473eb99cd6cd05f50f1865f30570e8',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'0b618f23f35f7bee1a14985c582b3beed4744bae',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
