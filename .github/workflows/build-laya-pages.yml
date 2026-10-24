@@ -118,7 +118,9 @@ jobs:
   verify:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A cold Playwright/Chromium dependency installation can consume 9+ minutes
+    # before the mobile 54-ring real-touch regression even starts.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -215,7 +217,8 @@ jobs:
   public-smoke:
     needs: [build, deploy]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Public smoke replays the same real-touch route after a fresh browser setup.
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
