@@ -107,12 +107,8 @@ async function run(browser,name,viewport,touch,allLevels){
   return labels;
  });
  assert.equal(seventh.length,2);assert.deepEqual(seventh.map(x=>x.text),['提示×1','消除×1']);assert.ok(seventh[0].x+seventh[0].w<seventh[1].x,'Day 7 reward labels remain separated');
- const claims=()=>page.evaluate(()=>Object.keys(JSON.parse(localStorage.getItem('jade-bracelet-laya-v1-meta')).economy.claims).length);
- const beforeClaim=await claims();await button(page,'@claim-signin',touch);await waitText(page,'今日已领取');assert.equal(await claims(),beforeClaim+1);
- await button(page,'@claim-signin',touch);assert.equal(await claims(),beforeClaim+1,'A disabled claim cannot grant twice');
- screenshots.push(await shot(page,name+'-sign-in-claimed'));
  await button(page,'@close-feature',touch);
- await button(page,'@bag',touch);await waitText(page,'我的背包');await waitText(page,'拥有 ×1');
+ await button(page,'@bag',touch);await waitText(page,'我的背包');await waitText(page,'拥有 ×0');
  screenshots.push(await shot(page,name+'-bag'));
  await button(page,'@close-bag',touch);
  
@@ -242,6 +238,17 @@ async function run(browser,name,viewport,touch,allLevels){
  screenshots.push(await shot(page,name+'-home-progress-v04'));
  await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
  const formal=await verifyFormal(page,context,name,touch,results);await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
+ // Run reward grants after the unchanged zero-inventory gameplay baseline.
+ await button(page,'@signin',touch);await waitText(page,'每日签到');
+ const claims=()=>page.evaluate(()=>Object.keys(JSON.parse(localStorage.getItem('jade-bracelet-laya-v1-meta')).economy.claims).length);
+ const beforeClaim=await claims();await button(page,'@claim-signin',touch);await waitText(page,'今日已领取');assert.equal(await claims(),beforeClaim+1);
+ await button(page,'@claim-signin',touch);assert.equal(await claims(),beforeClaim+1,'A disabled claim cannot grant twice');
+ screenshots.push(await shot(page,name+'-sign-in-claimed'));
+ await button(page,'@close-feature',touch);
+ await button(page,'@bag',touch);await waitText(page,'我的背包');await waitText(page,'拥有 ×1');
+ screenshots.push(await shot(page,name+'-bag-after-claim'));await button(page,'@close-bag',touch);
+ await page.waitForLoadState('networkidle');assert.deepEqual(errors,[]);
+
  await context.close();return{name,viewport,touch,allLevels,screenshots,frames,material,render,audio,formal,errors,passed:true};
 }
 function verifyFiles(evidence){for(const [name,expected]of Object.entries(evidence.files)){assert.equal(crypto.createHash('sha256').update(fs.readFileSync('source/dist/'+name)).digest('hex'),expected,'Changed build file '+name)}}
