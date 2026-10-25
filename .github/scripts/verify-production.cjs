@@ -76,8 +76,8 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.15.6');assert.equal(provenance.sourceSha,'415e874755b160feee3de9211bb9acc5d4ef9b66');
- await page.goto(base+'?debug&v=0.15.6',{waitUntil:'networkidle'});
+ const provenance=await release.json();assert.equal(provenance.version,'0.15.8');assert.equal(provenance.sourceSha,'b7a1dd7a5b3d41de4f352f44dd4625f7c6fdb12b');
+ await page.goto(base+'?debug&v=0.15.8',{waitUntil:'networkidle'});
  // A new player starts in the playable first tutorial, not the home menu.
  await waitText(page,'新手 · 1 / 2  找到粉色 B 镯',30000);
  assert.equal(await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1-tutorial-opened')),'1','The first-visit marker must persist');
@@ -87,7 +87,7 @@ async function run(browser,name,viewport,touch,allLevels){
  // Relaunch must respect the stored onboarding marker and return to home.
  await page.reload({waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
- await waitText(page,'v0.15.6 @雨过天青',30000);
+ await waitText(page,'v0.15.8 @雨过天青',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
  // Sign-in and permanent bag: side-edge placement and modal interaction
@@ -101,8 +101,18 @@ async function run(browser,name,viewport,touch,allLevels){
  assert.ok(shortcutPositions['button:signin'].y+shortcutPositions['button:signin'].h<shortcutPositions.play.y,'Shortcuts must be above the play button');
  await button(page,'@signin',touch);await waitText(page,'每日签到');
  screenshots.push(await shot(page,name+'-sign-in'));
+ const seventh=await page.evaluate(()=>{
+  function find(n){if(n.visible&&n.name==='signin-day:7')return n;for(let i=0;i<n.numChildren;i++){const p=find(n.getChildAt(i));if(p)return p}return null}
+  const day=find(Laya.stage),labels=[];for(let i=0;i<day.numChildren;i++){const n=day.getChildAt(i);if(n.name?.startsWith('signin-reward-label:'))labels.push({x:n.x,w:n.width,text:n.text})}
+  return labels;
+ });
+ assert.equal(seventh.length,2);assert.deepEqual(seventh.map(x=>x.text),['提示×1','消除×1']);assert.ok(seventh[0].x+seventh[0].w<seventh[1].x,'Day 7 reward labels remain separated');
+ const claims=()=>page.evaluate(()=>Object.keys(JSON.parse(localStorage.getItem('jade-bracelet-laya-v1-meta')).economy.claims).length);
+ const beforeClaim=await claims();await button(page,'@claim-signin',touch);await waitText(page,'今日已领取');assert.equal(await claims(),beforeClaim+1);
+ await button(page,'@claim-signin',touch);assert.equal(await claims(),beforeClaim+1,'A disabled claim cannot grant twice');
+ screenshots.push(await shot(page,name+'-sign-in-claimed'));
  await button(page,'@close-feature',touch);
- await button(page,'@bag',touch);await waitText(page,'我的背包');
+ await button(page,'@bag',touch);await waitText(page,'我的背包');await waitText(page,'拥有 ×1');
  screenshots.push(await shot(page,name+'-bag'));
  await button(page,'@close-bag',touch);
  
@@ -241,9 +251,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'&&process.env.JADE_VERIFY_MODE!=='fast'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'415e874755b160feee3de9211bb9acc5d4ef9b66',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'b7a1dd7a5b3d41de4f352f44dd4625f7c6fdb12b',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'415e874755b160feee3de9211bb9acc5d4ef9b66',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'b7a1dd7a5b3d41de4f352f44dd4625f7c6fdb12b',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
