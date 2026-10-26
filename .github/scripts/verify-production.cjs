@@ -132,17 +132,19 @@ async function run(browser,name,viewport,touch,allLevels){
   return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
  });
  if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
+ await page.waitForFunction(()=>{const a=window.jadeDebug?.game?.audio;return a?.music&&!a.music.isStopped&&a.music.volume===.18});
+ assert.equal(await page.evaluate(()=>window.jadeDebug.game.audio.music.loops),0,'Background music loops across all scenes');
  const startHits=await page.evaluate(()=>window.__audioQa.hits);
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
  screenshots.push(await shot(page,name+'-collision-v03'));
- await button(page,'音效开',touch);await page.waitForTimeout(120);
+ await button(page,'声音开',touch);await page.waitForTimeout(120);
  await page.waitForFunction(()=>window.__audioQa.currentPeak<.0001);
  assert.equal(await page.evaluate(()=>window.__audioQa.activeLoops),0,'Mute releases friction voices');
  const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
- await button(page,'音效关',touch);
+ await button(page,'声音关',touch);
  const pickB=await page.evaluate(()=>{
   function find(n){if(!n.visible)return null;if(n.text==='B')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
   const ring=find(Laya.stage).parent,p=ring.localToGlobal(new Laya.Point(0,0)),r=document.querySelector('canvas').getBoundingClientRect();
@@ -228,10 +230,10 @@ async function run(browser,name,viewport,touch,allLevels){
   await waitText(page,'新手练习');
  }
  await button(page,'@settings',touch);await waitText(page,'设置');
- await button(page,'音效 开',touch);await waitText(page,'音效 关');
+ await button(page,'声音 开',touch);await waitText(page,'声音 关');
  await button(page,'关闭',touch);
- await button(page,'@settings',touch);await waitText(page,'音效 关');
- await button(page,'音效 关',touch);await waitText(page,'音效 开');
+ await button(page,'@settings',touch);await waitText(page,'声音 关');
+ await button(page,'声音 关',touch);await waitText(page,'声音 开');
  await button(page,'关闭',touch);
  assert.equal(await hasText(page,'设置'),false);
  await waitText(page,'第1关');
