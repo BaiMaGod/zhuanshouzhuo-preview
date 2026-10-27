@@ -76,7 +76,7 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>{if(new URL(r.url()).pathname.endsWith('/assets/audio/blossom-valley.mp3')&&r.failure()?.errorText==='net::ERR_ABORTED')return;errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText)});
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.15.9');assert.equal(provenance.sourceSha,'b345195ddd64ff7d5dbd9ca656f025697092044d');
+ const provenance=await release.json();assert.equal(provenance.version,'0.15.9');assert.equal(provenance.sourceSha,'d6fde942bedcfc007ff4f1d0a564cc367bab28e2');
  const musicResponse=await page.request.get(new URL('assets/audio/blossom-valley.mp3',base).href);assert.equal(musicResponse.status(),200);
  assert.equal(crypto.createHash('sha256').update(await musicResponse.body()).digest('hex'),'fc6d348898781581102435c87ad9882ace4f029d327f307b86f6f0e18a10c7b9','Exact approved music asset is packaged');
  await page.goto(base+'?debug&v=0.15.9',{waitUntil:'networkidle'});
@@ -134,7 +134,7 @@ async function run(browser,name,viewport,touch,allLevels){
   return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
  });
  if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
- await page.waitForFunction(()=>{const c=window.Laya?.SoundManager?._musicChannel;return c&&!c.isStopped&&c.volume===.18});
+ await page.waitForFunction(()=>{const c=window.Laya?.SoundManager?._musicChannel;return c&&!c.isStopped&&c.volume===.5});
  assert.equal(await page.evaluate(()=>window.Laya.SoundManager._musicChannel.loops),0,'Background music loops across all scenes');
  const musicDecoded=await page.evaluate(async()=>{const c=new AudioContext();try{const b=await c.decodeAudioData(await(await fetch('assets/audio/blossom-valley.mp3')).arrayBuffer());return{duration:b.duration,channels:b.numberOfChannels}}finally{await c.close()}});
  assert.ok(musicDecoded.duration>62&&musicDecoded.duration<64);assert.equal(musicDecoded.channels,2);
@@ -234,6 +234,14 @@ async function run(browser,name,viewport,touch,allLevels){
   await waitText(page,'新手练习');
  }
  await button(page,'@settings',touch);await waitText(page,'设置');
+ await waitText(page,'背景音乐  50%');await waitText(page,'音效音量  65%');
+ await button(page,'@volume-music-up',touch);await waitText(page,'背景音乐  55%');
+ assert.equal(await page.evaluate(()=>Laya.SoundManager._musicChannel.volume),.55);
+ await button(page,'@volume-effects-down',touch);await waitText(page,'音效音量  60%');
+ assert.equal(await page.evaluate(()=>Laya.SoundManager._musicChannel.volume),.55,'Effects adjustment leaves music unchanged');
+ assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-audio-volumes-v1'))),{music:.55,effects:.6});
+ await button(page,'@volume-music-down',touch);await waitText(page,'背景音乐  50%');
+ await button(page,'@volume-effects-up',touch);await waitText(page,'音效音量  65%');
  await button(page,'声音 开',touch);await waitText(page,'声音 关');
  await button(page,'关闭',touch);
  await button(page,'@settings',touch);await waitText(page,'声音 关');
@@ -264,9 +272,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'&&process.env.JADE_VERIFY_MODE!=='fast'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'b345195ddd64ff7d5dbd9ca656f025697092044d',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'d6fde942bedcfc007ff4f1d0a564cc367bab28e2',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'b345195ddd64ff7d5dbd9ca656f025697092044d',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'d6fde942bedcfc007ff4f1d0a564cc367bab28e2',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
