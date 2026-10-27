@@ -73,10 +73,12 @@ async function run(browser,name,viewport,touch,allLevels){
  const page=await context.newPage(),errors=[],screenshots=[];
  page.on('pageerror',e=>{errors.push(e.message);console.error(name+' page error: '+e.stack)});
  page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
- page.on('requestfailed',r=>errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText));
+ page.on('requestfailed',r=>{if(new URL(r.url()).pathname.endsWith('/assets/audio/blossom-valley.mp3')&&r.failure()?.errorText==='net::ERR_ABORTED')return;errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText)});
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
  const provenance=await release.json();assert.equal(provenance.version,'0.15.9');assert.equal(provenance.sourceSha,'b345195ddd64ff7d5dbd9ca656f025697092044d');
+ const musicResponse=await page.request.get(new URL('assets/audio/blossom-valley.mp3',base).href);assert.equal(musicResponse.status(),200);
+ assert.equal(crypto.createHash('sha256').update(await musicResponse.body()).digest('hex'),'fc6d348898781581102435c87ad9882ace4f029d327f307b86f6f0e18a10c7b9','Exact approved music asset is packaged');
  await page.goto(base+'?debug&v=0.15.9',{waitUntil:'networkidle'});
  // A new player starts in the playable first tutorial, not the home menu.
  await waitText(page,'新手 · 1 / 2  找到粉色 B 镯',30000);
@@ -134,6 +136,8 @@ async function run(browser,name,viewport,touch,allLevels){
  if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
  await page.waitForFunction(()=>{const c=window.Laya?.SoundManager?._musicChannel;return c&&!c.isStopped&&c.volume===.18});
  assert.equal(await page.evaluate(()=>window.Laya.SoundManager._musicChannel.loops),0,'Background music loops across all scenes');
+ const musicDecoded=await page.evaluate(async()=>{const c=new AudioContext();try{const b=await c.decodeAudioData(await(await fetch('assets/audio/blossom-valley.mp3')).arrayBuffer());return{duration:b.duration,channels:b.numberOfChannels}}finally{await c.close()}});
+ assert.ok(musicDecoded.duration>62&&musicDecoded.duration<64);assert.equal(musicDecoded.channels,2);
  const startHits=await page.evaluate(()=>window.__audioQa.hits);
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
