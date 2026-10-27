@@ -76,7 +76,7 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>{if(new URL(r.url()).pathname.endsWith('/assets/audio/blossom-valley.mp3')&&r.failure()?.errorText==='net::ERR_ABORTED')return;errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText)});
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.15.9');assert.equal(provenance.sourceSha,'6af6b1b0189df54492755cfa8814d4f1ebc7e3ee');
+ const provenance=await release.json();assert.equal(provenance.version,'0.15.9');assert.equal(provenance.sourceSha,'e6f12175f016d9d2ada8e9972aa843bbe1a501f6');
  const musicResponse=await page.request.get(new URL('assets/audio/blossom-valley.mp3',base).href);assert.equal(musicResponse.status(),200);
  assert.equal(crypto.createHash('sha256').update(await musicResponse.body()).digest('hex'),'fc6d348898781581102435c87ad9882ace4f029d327f307b86f6f0e18a10c7b9','Exact approved music asset is packaged');
  await page.goto(base+'?debug&v=0.15.9',{waitUntil:'networkidle'});
@@ -145,13 +145,13 @@ async function run(browser,name,viewport,touch,allLevels){
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);
  await page.waitForFunction(n=>window.__audioQa.hits>n,startHits);
  screenshots.push(await shot(page,name+'-collision-v03'));
- await button(page,'声音开',touch);await page.waitForTimeout(120);
+ await button(page,'@sound',touch);await waitText(page,'音量设置');await button(page,'声音 开',touch);await button(page,'关闭',touch);await page.waitForTimeout(120);
  await page.waitForFunction(()=>window.__audioQa.currentPeak<.0001);
  assert.equal(await page.evaluate(()=>window.__audioQa.activeLoops),0,'Mute releases friction voices');
  const mutedStarts=await page.evaluate(()=>window.__audioQa.started);
  await verifyFormal.turn(page,await context.newCDPSession(page),{id:'A',delta:30,expectBlocked:true},touch);await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.__audioQa.started),mutedStarts,'Muted collision starts no voice');
- await button(page,'声音关',touch);
+ await button(page,'@sound',touch);await waitText(page,'音量设置');await button(page,'声音 关',touch);await button(page,'关闭',touch);
  const pickB=await page.evaluate(()=>{
   function find(n){if(!n.visible)return null;if(n.text==='B')return n;for(let i=0;i<n.numChildren;i++){const t=find(n.getChildAt(i));if(t)return t}return null}
   const ring=find(Laya.stage).parent,p=ring.localToGlobal(new Laya.Point(0,0)),r=document.querySelector('canvas').getBoundingClientRect();
@@ -275,9 +275,9 @@ function verifyFiles(evidence){for(const [name,expected]of Object.entries(eviden
  const profiles=[];
  try{for(const [name,viewport,touch,allLevels]of [['desktop',{width:720,height:1280},false,false],['desktop-wide',{width:1920,height:1080},false,false],['mobile',{width:390,height:844},true,true],['narrow',{width:375,height:667},true,false]]){if(process.env.JADE_PROFILE&&process.env.JADE_PROFILE!==name)continue;profiles.push(await run(browser,name,viewport,touch,allLevels&&process.env.JADE_PUBLIC_SMOKE!=='true'&&process.env.JADE_VERIFY_MODE!=='fast'));}assert.ok(profiles.length);}
  finally{await browser.close()}
- fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'6af6b1b0189df54492755cfa8814d4f1ebc7e3ee',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
+ fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'e6f12175f016d9d2ada8e9972aa843bbe1a501f6',verificationMode:process.env.JADE_VERIFY_MODE||'full',profiles,passed:true},null,2));
  if(!process.env.JADE_URL){const path='source/dist/_build-evidence.json',e=JSON.parse(fs.readFileSync(path));verifyFiles(e);e.browserSmokePassed=true;e.browserSmokeViewport=profiles.map(p=>p.viewport);fs.writeFileSync(path,JSON.stringify(e,null,2));verifyFiles(e)}
  console.log('Final verified profiles: '+profiles.map(p=>p.name).join(', ')+'; publicSmoke='+!!process.env.JADE_PUBLIC_SMOKE);
-})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'6af6b1b0189df54492755cfa8814d4f1ebc7e3ee',passed:false,error:String(e)},null,2));process.exit(1)});
+})().catch(e=>{console.error(e);fs.mkdirSync(results,{recursive:true});fs.writeFileSync(results+'/report.json',JSON.stringify({url:base,sourceSha:'e6f12175f016d9d2ada8e9972aa843bbe1a501f6',passed:false,error:String(e)},null,2));process.exit(1)});
 
 
