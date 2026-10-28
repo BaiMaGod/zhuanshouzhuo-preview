@@ -139,7 +139,7 @@ async function run(browser,name,viewport,touch,allLevels){
   return{x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height};
  });
  if(touch)await page.touchscreen.tap(pickA.x,pickA.y);else await page.mouse.click(pickA.x,pickA.y);
- await page.waitForFunction(()=>{const c=window.Laya?.SoundManager?._musicChannel;return c&&!c.isStopped&&c.volume===.5});
+ await page.waitForFunction(()=>{const c=window.Laya?.SoundManager?._musicChannel;return c&&!c.isStopped&&c.volume===.3});
  assert.equal(await page.evaluate(()=>window.Laya.SoundManager._musicChannel.loops),0,'Background music loops across all scenes');
  const musicDecoded=await page.evaluate(async()=>{const c=new AudioContext();try{const b=await c.decodeAudioData(await(await fetch('assets/audio/blossom-valley.mp3')).arrayBuffer());return{duration:b.duration,channels:b.numberOfChannels}}finally{await c.close()}});
  assert.ok(musicDecoded.duration>62&&musicDecoded.duration<64);assert.equal(musicDecoded.channels,2);
@@ -239,14 +239,14 @@ async function run(browser,name,viewport,touch,allLevels){
   await waitText(page,'新手练习');
  }
  await button(page,'@settings',touch);await waitText(page,'设置');
- await waitText(page,'背景音乐  50%');await waitText(page,'音效音量  65%');
- await button(page,'@volume-music-up',touch);await waitText(page,'背景音乐  55%');
- assert.equal(await page.evaluate(()=>Laya.SoundManager._musicChannel.volume),.55);
- await button(page,'@volume-effects-down',touch);await waitText(page,'音效音量  60%');
- assert.equal(await page.evaluate(()=>Laya.SoundManager._musicChannel.volume),.55,'Effects adjustment leaves music unchanged');
- assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-audio-volumes-v1'))),{music:.55,effects:.6});
- await button(page,'@volume-music-down',touch);await waitText(page,'背景音乐  50%');
- await button(page,'@volume-effects-up',touch);await waitText(page,'音效音量  65%');
+ await waitText(page,'背景音乐  60%');await waitText(page,'音效音量  80%');
+ await button(page,'@volume-music-up',touch);await waitText(page,'背景音乐  65%');
+ assert.equal(await page.evaluate(()=>Laya.SoundManager._musicChannel.volume),.325);
+ await button(page,'@volume-effects-down',touch);await waitText(page,'音效音量  75%');
+ assert.equal(await page.evaluate(()=>Laya.SoundManager._musicChannel.volume),.325,'Effects adjustment leaves music unchanged');
+ assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-audio-volumes-v1'))),{music:.65,effects:.75});
+ await button(page,'@volume-music-down',touch);await waitText(page,'背景音乐  60%');
+ await button(page,'@volume-effects-up',touch);await waitText(page,'音效音量  80%');
  await button(page,'声音 开',touch);await waitText(page,'声音 关');
  await button(page,'关闭',touch);
  await button(page,'@settings',touch);await waitText(page,'声音 关');
