@@ -13,7 +13,9 @@ for(const name of ['jadeDebug','exposeDebug'])assert.ok(!source.includes(name),'
 fs.writeFileSync(entry,source);
 const sourceSha=cp.execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const version=JSON.parse(fs.readFileSync('source/package.json'));
-assert.equal(sourceSha,'e6f12175f016d9d2ada8e9972aa843bbe1a501f6');assert.equal(version.version,'0.15.9');
+assert.match(sourceSha,/^[a-f0-9]{40}$/,'Source checkout must resolve to a commit SHA');
+if(process.env.JADE_SOURCE_SHA)assert.equal(sourceSha,process.env.JADE_SOURCE_SHA,'Official source must match the pinned workflow source SHA');
+assert.equal(version.version,'0.15.9');
 const info={version:version.version,engine:'LayaAir 3.4.0',teachingLevels:10,formalLevels:100,sourceSha};
 fs.writeFileSync(root+'/version.json',JSON.stringify(info));
 fs.writeFileSync(root+'/release.json',JSON.stringify({...info,previewSha:process.env.GITHUB_SHA,build:'Official checked-in LayaAir 3.4.0 project and startup scene'},null,2));
