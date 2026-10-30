@@ -5,13 +5,13 @@ on:
       source_ref:
         description: Formal source commit
         required: true
-        default: '436151cc59546bc7ff244d9c3be8c4838a237f2c'
+        default: '1d5b088e85208dac4722756c9b42835e6e37aced'
       release_mode:
         description: 'auto detects rule changes; full forces exhaustive verification'
         required: false
         default: 'auto'
 env:
-  JADE_SOURCE_SHA: '436151cc59546bc7ff244d9c3be8c4838a237f2c'
+  JADE_SOURCE_SHA: '1d5b088e85208dac4722756c9b42835e6e37aced'
 permissions:
   contents: read
   pages: write
