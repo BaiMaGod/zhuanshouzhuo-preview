@@ -1,0 +1,155 @@
+name: Jade readability QA (no deployment)
+on:
+  push:
+    branches: [qa/readability-v01512]
+env:
+  JADE_SOURCE_SHA: '9b4901f578890cc394bfee9f11a6d1cd79b5a14b'
+permissions:
+  contents: read
+concurrency:
+  group: jade-readability-qa
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      verification_mode: ${{ steps.mode.outputs.verification_mode }}
+      profiles: ${{ steps.mode.outputs.profiles }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
+          path: source
+          persist-credentials: false
+      - name: Cache LayaAir 3.4 SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.layaair
+          key: ${{ runner.os }}-jade-layaair-3.4.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: source/package-lock.json
+      - name: Select full quality gate
+        id: mode
+        run: |
+          echo 'verification_mode=full' >> "$GITHUB_OUTPUT"
+          echo 'profiles=["desktop","desktop-wide","mobile","narrow"]' >> "$GITHUB_OUTPUT"
+      - name: Install, typecheck and run game regression checks
+        working-directory: source
+        env:
+          JADE_VERIFY_MODE: ${{ steps.mode.outputs.verification_mode }}
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run build
+          # Fail quickly on UI/unit regressions before the 100-level exhaustive solver gate.
+          node --test tests/*.test.mjs
+          if [[ "$JADE_VERIFY_MODE" == "full" ]]; then
+            node --test tests/full/*.test.mjs
+          fi
+      - name: Official LayaAir 3.4 Web build
+        run: bash .github/scripts/build-official.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+          include-hidden-files: true
+          retention-days: 7
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+    # A cold Playwright/Chromium dependency installation can consume 9+ minutes
+    # before the mobile 54-ring real-touch regression even starts.
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(needs.build.outputs.profiles) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: ${{ inputs.source_ref || env.JADE_SOURCE_SHA }}
+          path: source
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: jade-candidate-web
+          path: source/dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Cache Chromium browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-jade-chromium-playwright-1.62.1
+      - name: Browser dependencies
+        run: |
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
+          .qa/node_modules/.bin/playwright install --with-deps chromium
+      - name: Real input and formal route regression
+        env:
+          JADE_PROFILE: ${{ matrix.profile }}
+          JADE_VERIFY_MODE: ${{ needs.build.outputs.verification_mode }}
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8080 --directory source/dist > .qa/server.log 2>&1 &
+          mkdir -p .qa/results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/results/browser-checks.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jade-browser-${{ matrix.profile }}
+          path: .qa/results
+          retention-days: 7
+  presentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: 9b4901f578890cc394bfee9f11a6d1cd79b5a14b
+          path: source
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: 436151cc59546bc7ff244d9c3be8c4838a237f2c
+          path: baseline
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare both versions and browser
+        run: |
+          npm ci --prefix source --no-audit --no-fund
+          npm run build --prefix source
+          npm ci --prefix baseline --no-audit --no-fund
+          npm run build --prefix baseline
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1
+          .qa/node_modules/.bin/playwright install --with-deps chromium
+          ln -s "$GITHUB_WORKSPACE/.qa/node_modules/playwright" source/node_modules/playwright
+      - name: Same-state real-input baseline and revised presentation
+        working-directory: source
+        run: |
+          set -euo pipefail
+          export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$(node -e "import('playwright').then(p=>console.log(p.chromium.executablePath()))")"
+          JADE_BASELINE=1 JADE_DIST="$GITHUB_WORKSPACE/baseline/dist" JADE_REPORT="$GITHUB_WORKSPACE/.qa/presentation/baseline" node tests/browser-feedback.mjs
+          JADE_REPORT="$GITHUB_WORKSPACE/.qa/presentation/current" node tests/browser-feedback.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jade-readability-comparison
+          path: .qa/presentation
+          retention-days: 7
