@@ -2,6 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),crypto=require(
 const {chromium}=require(process.cwd()+'/.qa/node_modules/playwright');
 const {PNG}=require(process.cwd()+'/.qa/node_modules/pngjs');
 const verifyFormal=require('./verify-formal.cjs');
+const expectedVersion=JSON.parse(fs.readFileSync('source/package.json','utf8')).version;
 const base=process.env.JADE_URL||'http://127.0.0.1:8080/';
 const results=process.env.JADE_URL?'.qa/public-results':'.qa/results';
 const expectedSourceSha=process.env.JADE_SOURCE_SHA||require('node:child_process').execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
@@ -78,10 +79,10 @@ async function run(browser,name,viewport,touch,allLevels){
  page.on('requestfailed',r=>{if(new URL(r.url()).pathname.endsWith('/assets/audio/blossom-valley.mp3')&&r.failure()?.errorText==='net::ERR_ABORTED')return;errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText)});
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
- const provenance=await release.json();assert.equal(provenance.version,'0.15.9');assert.equal(provenance.sourceSha,expectedSourceSha);
+ const provenance=await release.json();assert.equal(provenance.version,expectedVersion);assert.equal(provenance.sourceSha,expectedSourceSha);
  const musicResponse=await page.request.get(new URL('assets/audio/blossom-valley.mp3',base).href);assert.equal(musicResponse.status(),200);
  assert.equal(crypto.createHash('sha256').update(await musicResponse.body()).digest('hex'),'fc6d348898781581102435c87ad9882ace4f029d327f307b86f6f0e18a10c7b9','Exact approved music asset is packaged');
- await page.goto(base+'?debug&v=0.15.9',{waitUntil:'networkidle'});
+ await page.goto(base+'?debug&v='+encodeURIComponent(expectedVersion),{waitUntil:'networkidle'});
  // A new player starts in the playable first tutorial, not the home menu.
  await waitText(page,'新手 · 1 / 2  找到粉色 B 镯',30000);
  assert.equal(await page.evaluate(()=>localStorage.getItem('jade-bracelet-laya-v1-tutorial-opened')),'1','The first-visit marker must persist');
@@ -94,7 +95,7 @@ async function run(browser,name,viewport,touch,allLevels){
  // Relaunch must respect the stored onboarding marker and return to home.
  await page.reload({waitUntil:'networkidle'});
  await waitText(page,'新手练习',30000);
- await waitText(page,'v0.15.9 @雨过天青',30000);
+ await waitText(page,'v'+expectedVersion+' @雨过天青',30000);
  assert.equal(await page.evaluate(()=>window.jadeDebug),undefined,'No mutable diagnostic bridge in release');
  screenshots.push(await shot(page,name+'-home-v04'));
  // Sign-in and permanent bag: side-edge placement and modal interaction
@@ -185,13 +186,13 @@ async function run(browser,name,viewport,touch,allLevels){
  if(allLevels)for(let i=1;i<10;i++){
   await button(page,'进入第 '+(i+1)+' 境',touch);await waitText(page,'重开');
   if(i===3||i===4||i===9)screenshots.push(await shot(page,name+'-level'+(i+1)+'-v03'));
-  const path=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/solutions.js')).href)).default[i];const session=await context.newCDPSession(page),core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default,expected=core.make(i);for(const a of path){const actual=await verifyFormal.view(page,a.id),adjusted={...a,delta:a.delta+core.diff(core.ring(expected,a.id).a,actual.angle)};core.request(expected,a.id,a.delta);await verifyFormal.turn(page,session,adjusted,touch);assert.equal(await verifyFormal.activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Teaching '+(i+1)+' actual gesture '+a.id);}await waitText(page,i===9?'十境皆通':'这一境，解开了');
+  const path=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/solutions.js')).href)).default[i];const session=await context.newCDPSession(page),core=(await import(require('node:url').pathToFileURL(require('node:path').resolve('source/src/core.js')).href)).default,expected=core.make(i);for(const a of path){const actual=await verifyFormal.view(page,a.id),adjusted={...a,delta:a.delta+core.diff(core.ring(expected,a.id).a,actual.angle)};core.request(expected,a.id,a.delta);await verifyFormal.turn(page,session,adjusted,touch);assert.equal(await verifyFormal.activeCount(page),expected.rings.filter(r=>r.life==='active').length,'Teaching '+(i+1)+' actual gesture '+a.id);}await waitText(page,i===9?'教学全部完成':'这一境，解开了');
   const save=await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')));
   assert.ok(save.records[i]);assert.equal(save.unlocked,Math.min(9,i+1));
   console.log(name+': UI progression + real ring gestures cleared level '+(i+1)+'.');
  }
  await button(page,'再解一次',touch);await waitText(page,'重开');
- assert.equal(await hasText(page,'这一境，解开了'),false);assert.equal(await hasText(page,'十境皆通'),false);
+ assert.equal(await hasText(page,'这一境，解开了'),false);assert.equal(await hasText(page,'教学全部完成'),false);
  screenshots.push(await shot(page,name+'-restart-v03'));
  await button(page,'重开',touch);await waitText(page,'重开');
  const frames=await page.evaluate(()=>new Promise(resolve=>{const a=[];let last=performance.now();function step(now){a.push(now-last);last=now;if(a.length<120)requestAnimationFrame(step);else{a.sort((x,y)=>x-y);resolve({p95:a[Math.floor(a.length*.95)],max:a[a.length-1]})}}requestAnimationFrame(step)}));

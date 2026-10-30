@@ -55,7 +55,7 @@ async function turn(page,session,a,touch){
  for(let fragment=0;fragment<16;fragment++){
   const state=await focus(page,session,a.id,touch),start=state.angle+(a.gripOffset??[50,65,35,80,20][fragment%5]),points=[],n=Math.max(1,Math.ceil(Math.abs(remaining)/4));
   for(let k=0;k<=n;k++)points.push(await nodePoint(page,a.id,start+remaining*k/n));
-  await drag(page,session,points,touch);await page.waitForTimeout(400);
+  await drag(page,session,points,touch);await page.waitForTimeout(520);
   const after=await view(page,a.id);if(!after.visible||a.expectBlocked)return;
   const norm=x=>(x%360+360)%360,progress=a.delta>0?norm(after.angle-initial.angle):-norm(initial.angle-after.angle);remaining=a.delta-progress;
   if(Math.abs(remaining)<1.5)return;
