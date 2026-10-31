@@ -82,13 +82,15 @@ module.exports=async function(page,context,name,touch,results){
  };
  const inspect=()=>page.evaluate(()=>{
   const cards=[];let viewport;
-  function scan(n){if(n.name==='atlas-viewport')viewport=n;if(n.name?.startsWith('formal-level:'))cards.push({name:n.name,enabled:n.enabled,w:n.width,h:n.height,text:Array.from({length:n.numChildren},(_,i)=>n.getChildAt(i).text).filter(Boolean)});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);
+  function scan(n){if(n.name==='atlas-viewport')viewport=n;if(n.name?.startsWith('formal-level:'))cards.push({name:n.name,enabled:n.enabled,w:n.width,h:n.height,y:n.y,text:Array.from({length:n.numChildren},(_,i)=>n.getChildAt(i).text).filter(Boolean)});for(let i=0;i<n.numChildren;i++)scan(n.getChildAt(i))}scan(Laya.stage);
   return {cards,height:viewport.height,offset:Math.abs(viewport.getChildAt(0).y)};
  });
  await openAtlas();
  let atlas=await inspect();assert.equal(atlas.offset,0);assert.equal(atlas.cards.length,40);
  assert.ok(atlas.cards.every(c=>c.w===148&&c.h<=132&&c.text.length===1));
  assert.equal(atlas.cards.find(c=>c.name==='formal-level:2').enabled,false);
+ const pageStride=atlas.cards.find(c=>c.name==='formal-level:21').y-atlas.cards.find(c=>c.name==='formal-level:1').y;
+ assert.ok(pageStride>0&&pageStride<atlas.height,'Atlas page stride matches actual compact card placement');
  await button(page,'第2关',touch);assert.equal((await inspect()).offset,0);
  // Drag within the actual atlas viewport. This tests the player gesture rather
  // than relying on browser-wheel delta units, which differ across Laya builds.
@@ -110,8 +112,8 @@ module.exports=async function(page,context,name,touch,results){
   }
   throw Error('Real atlas drag cannot reach requested page: '+JSON.stringify({target,actual:(await inspect()).offset}));
  };
- await scrollTo(atlas.height*2);
- atlas=await inspect();assert.ok(Math.abs(atlas.offset-atlas.height*2)<12,'Real drag reaches atlas page 3');assert.ok(atlas.cards.length<=60);
+ await scrollTo(pageStride*2);
+ atlas=await inspect();assert.ok(Math.abs(atlas.offset-pageStride*2)<12,'Real drag reaches atlas page 3');assert.ok(atlas.cards.length<=60);
  screenshots.push(await shot(page,results,name+'-atlas-scroll'));
  // A historical non-contiguous record is an explicit compatibility fixture.
  // It unlocks only the already completed legacy level; the full route below
@@ -119,11 +121,14 @@ module.exports=async function(page,context,name,touch,results){
  await page.evaluate(()=>{const key='jade-bracelet-laya-v1',save=JSON.parse(localStorage.getItem(key));save.records[54]={steps:54,stars:3};localStorage.setItem(key,JSON.stringify(save));});
  await page.reload({waitUntil:'networkidle'});await openAtlas();
  atlas=await inspect();assert.equal(atlas.offset,0,'Re-entry locates the first unfinished level');
- await scrollTo(atlas.height*2);
+ await scrollTo(pageStride*2);
  assert.equal((await inspect()).cards.find(c=>c.name==='formal-level:45').enabled,true);
  // The atlas deliberately blocks a click for 300ms after a scroll to
  // prevent a swipe from accidentally entering a level.
  await page.waitForTimeout(450);
+ atlas=await inspect();
+ const level45=atlas.cards.find(c=>c.name==='formal-level:45');
+ assert.ok(level45&&level45.y-atlas.offset>=0&&level45.y+level45.h-atlas.offset<=atlas.height,'Level 45 is fully visible after actual atlas drag');
  await button(page,'第45关',touch);
  await page.waitForFunction(()=>{
   function count(n){let x=n.name?.startsWith('ring-id:')?1:0;for(let i=0;i<n.numChildren;i++)x+=count(n.getChildAt(i));return x}
