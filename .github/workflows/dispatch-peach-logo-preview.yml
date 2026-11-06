@@ -22,4 +22,4 @@ jobs:
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/BaiMaGod/zhuanshouzhuo-preview/actions/workflows/build-laya-pages.yml/dispatches \
-            -d '{"ref":"main","inputs":{"source_ref":"1441c8a6606845a9da354ccabb8f11ae7dddc0f2","release_mode":"full"}}'
+            -d '{"ref":"main","inputs":{"source_ref":"40e100556505ab14ce6bc361c19f4beb4e043666","release_mode":"full"}}'
