@@ -178,6 +178,15 @@ async function run(browser,name,viewport,touch,allLevels){
   await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  }else{await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();for(const p of points.slice(1)){await page.mouse.move(p.x,p.y);await page.waitForTimeout(20)}await page.mouse.up()}
  await waitText(page,'这一境，解开了',15000);
+ // The final gesture must clear both clasp layers before the victory UI enters.
+ // This checks the real shipped WebGL stage without enabling a debug bridge.
+ const remainingClasps=await page.evaluate(()=>{
+  function find(n,name){if(n.name===name)return n;for(let i=0;i<n.numChildren;i++){const child=find(n.getChildAt(i),name);if(child)return child}return null}
+  const moving=find(Laya.stage,'board-rods'),fixed=find(Laya.stage,'board-fixed-rods');
+  return {movingVisible:moving?.visible,movingCache:moving?.cacheAs,fixedVisible:fixed?.children?.some(child=>child.visible)};
+ });
+ assert.deepEqual(remainingClasps,{movingVisible:false,movingCache:'none',fixedVisible:false},
+  'Last-step clear must leave zero owner-mounted and background clasp sprites');
  await page.waitForFunction(()=>window.__audioQa.activeLoops===0,null,{timeout:3000});
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('jade-bracelet-laya-v1')).unlocked),1);
  screenshots.push(await shot(page,name+'-win-v04'));
