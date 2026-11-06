@@ -183,7 +183,7 @@ async function run(browser,name,viewport,touch,allLevels){
  const remainingClasps=await page.evaluate(()=>{
   function find(n,name){if(n.name===name)return n;for(let i=0;i<n.numChildren;i++){const child=find(n.getChildAt(i),name);if(child)return child}return null}
   const moving=find(Laya.stage,'board-rods'),fixed=find(Laya.stage,'board-fixed-rods');
-  return {movingVisible:moving?.visible,movingCache:moving?.cacheAs,fixedVisible:fixed?.children?.some(child=>child.visible)};
+  return {movingVisible:moving?.visible,movingCache:moving?.cacheAs,fixedVisible:fixed?Array.from({length:fixed.numChildren},(_,i)=>fixed.getChildAt(i)).some(child=>child.visible):null};
  });
  assert.deepEqual(remainingClasps,{movingVisible:false,movingCache:'none',fixedVisible:false},
   'Last-step clear must leave zero owner-mounted and background clasp sprites');
