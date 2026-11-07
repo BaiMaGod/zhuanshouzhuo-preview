@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/dispatch-peach-logo-preview.yml'
+      - '.github/scripts/verify-formal.cjs'
 permissions:
   actions: write
   contents: read
