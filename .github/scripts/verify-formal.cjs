@@ -95,20 +95,44 @@ module.exports=async function(page,context,name,touch,results){
  // Drag within the actual atlas viewport. This tests the player gesture rather
  // than relying on browser-wheel delta units, which differ across Laya builds.
  const scrollTo=async(target)=>{
+  // Use the same input modality as the tested device. Mobile profiles must
+  // dispatch real touch events, not synthetic mouse drags.
+  // Convert logical game coordinates to CSS pixels including RENDER_SCALE;
+  // the previous helper omitted this factor and could overshoot on narrow phones.
+  let gain=1.3;
   for(let attempt=0;attempt<18;attempt++){
    const before=(await inspect()).offset,remaining=target-before;
    if(Math.abs(remaining)<12)return;
-   const motion=Math.sign(remaining)*Math.min(Math.abs(remaining)+(Math.abs(remaining)<10?3:0),atlas.height*.45);
+   const motion=Math.sign(remaining)*Math.min(Math.abs(remaining)/gain,atlas.height*.35);
    const v=await page.evaluate(down=>{
     function find(n){if(n.name==='atlas-viewport')return n;for(let i=0;i<n.numChildren;i++){const c=find(n.getChildAt(i));if(c)return c}return null}
     const box=find(Laya.stage);if(!box)throw Error('Missing atlas viewport');
     const r=document.querySelector('canvas').getBoundingClientRect();
     const p=box.localToGlobal(new Laya.Point(box.width/2,box.height*(down?.75:.25)));
-    return {x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height,scale:r.height/Laya.stage.height};
+    return {x:r.left+p.x*r.width/Laya.stage.width,y:r.top+p.y*r.height/Laya.stage.height,
+      scale:r.height/Laya.stage.height*(Laya.stage.width/720)};
    },motion>0);
-   await page.mouse.move(v.x,v.y);await page.mouse.down();
-   for(let k=1;k<=12;k++){await page.mouse.move(v.x,v.y-motion*v.scale*k/12);await page.waitForTimeout(8)}
-   await page.mouse.up();await page.waitForTimeout(130);
+   const points=Array.from({length:25},(_,k)=>({x:v.x,y:v.y-motion*v.scale*k/24}));
+   if(touch){
+    await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...points[0],id:51}]});
+    for(const p of points.slice(1)){
+     await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...p,id:51}]});
+     await page.waitForTimeout(24);
+    }
+    await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+   }else{
+    await page.mouse.move(points[0].x,points[0].y);await page.mouse.down();
+    for(const p of points.slice(1)){await page.mouse.move(p.x,p.y);await page.waitForTimeout(24)}
+    await page.mouse.up();
+   }
+   // Let Laya's inertial easing finish before measuring the next correction.
+   await page.waitForTimeout(420);
+   const after=(await inspect()).offset,moved=after-before;
+   if(Math.abs(moved)>1&&Math.sign(moved)===Math.sign(motion)){
+    const observed=Math.max(.8,Math.min(2.2,Math.abs(moved/motion)));
+    gain=gain*.5+observed*.5;
+   }
+   console.log('Atlas drag settled:',JSON.stringify({attempt,before,after,target,motion,gain}));
   }
   throw Error('Real atlas drag cannot reach requested page: '+JSON.stringify({target,actual:(await inspect()).offset}));
  };
