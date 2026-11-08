@@ -6,14 +6,14 @@ let source=fs.readFileSync(entry,'utf8');
 // literal to exposeDebug. Keep compatibility with the previous one-line bundle,
 // but fail closed unless exactly one reviewed startup bridge is removed.
 const startupPatterns=[
- /\\n\\s*if\\s*\\(debugEnabled\\(\\)\\)\\s*\\{\\s*exposeDebug\\([^\\n]+\\);\\s*\\}/,
- /\\n\\s*if\\s*\\(debugEnabled\\(\\)\\)\\s*\\{\\s*exposeDebug\\(\\{[\\s\\S]*?\\n\\s*\\}\\);\\s*\\}/
+ /\n\s*if\s*\(debugEnabled\(\)\)\s*\{\s*exposeDebug\([^\n]+\);\s*\}/,
+ /\n\s*if\s*\(debugEnabled\(\)\)\s*\{\s*exposeDebug\(\{[\s\S]*?\n\s*\}\);\s*\}/
 ];
 const startup=startupPatterns.find(pattern=>pattern.test(source));
 assert.ok(startup,'Official bundle startup must match the reviewed diagnostic adapter (single-line or multiline)');
 source=source.replace(startup,'');
 for(const name of ['exposeDebug']){
- const fn=new RegExp('\\\\n\\\\s*function '+name+'\\\\([^\\\\n]*\\\\)\\\\s*\\\\{[\\\\s\\\\S]*?\\\\n\\\\s*\\\\}');
+ const fn=new RegExp('\\n\\s*function '+name+'\\([^\\n]*\\)\\s*\\{[\\s\\S]*?\\n\\s*\\}');
  assert.ok(fn.test(source),'Missing expected optional QA function '+name);source=source.replace(fn,'');
 }
 for(const name of ['jadeDebug','exposeDebug'])assert.ok(!source.includes(name),'Mutable diagnostic bridge remains: '+name);
