@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/dispatch-peach-logo-preview.yml'
       - '.github/scripts/verify-formal.cjs'
+      - '.github/scripts/seal-release.cjs'
 permissions:
   actions: write
   contents: read
