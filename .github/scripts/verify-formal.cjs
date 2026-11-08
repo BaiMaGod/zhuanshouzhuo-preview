@@ -236,13 +236,14 @@ module.exports=async function(page,context,name,touch,results){
  const cacheInfo=await page.evaluate(()=>{function find(n){if(n.name==='ring-id:1G')return n;for(let i=0;i<n.numChildren;i++){const b=find(n.getChildAt(i));if(b)return b}return null}const ring=find(Laya.stage).parent,viewport=ring.parent.parent.parent,scene=viewport.parent;const rect=n=>{const r=n.getSelfBounds(new Laya.Rectangle(0,0,0,0));return {x:r.x,y:r.y,width:r.width,height:r.height}};return {sceneCache:scene.cacheAs,viewportCache:viewport.cacheAs,sceneBounds:rect(scene),viewportBounds:rect(viewport),dpr:devicePixelRatio,glVersion:document.querySelector('canvas').getContext('webgl')?.getParameter(document.querySelector('canvas').getContext('webgl').VERSION)};});console.log(name+' cache diagnostics: '+JSON.stringify(cacheInfo));
  // Inspect cached world layers and the actual visible density before sampling.
  const renderDiagnostics=await page.evaluate(()=>{
-  const rings=[],all=[];
-  function visit(n){if(n.name==='board-rods')all.push(n);if(n.name?.startsWith('ring-id:'))rings.push(n.parent);for(let i=0;i<n.numChildren;i++)visit(n.getChildAt(i))}
+  const rings=[],all=[];let fixed=null;
+  function visit(n){if(n.name==='board-rods')all.push(n);if(n.name==='board-fixed-rods')fixed=n;if(n.name?.startsWith('ring-id:'))rings.push(n.parent);for(let i=0;i<n.numChildren;i++)visit(n.getChildAt(i))}
   visit(Laya.stage);
   const rods=all[0],first=rings[0],space=first?.parent,world=space?.parent;
   return {ringCount:rings.length,visibleRings:rings.filter(r=>r.visible).length,
-   cachedBodies:rings.filter(r=>r.getChildAt(2)?.cacheAs==='normal').length,
-   rodCache:rods?.cacheAs||'none',worldZoom:world?.scaleX||null,
+   cachedBodies:rings.filter(r=>r.getChildAt(2)?.cacheAs==='bitmap').length,
+   rodCache:rods?.cacheAs||'none',fixedRodNodes:fixed?.numChildren??null,
+   fixedRodCommands:fixed?.graphics?.cmds?.length??null,worldZoom:world?.scaleX||null,
    dpr:devicePixelRatio,viewport:{width:innerWidth,height:innerHeight}};
  });
  fs.writeFileSync(results+'/'+name+'-formal-render-diagnostics.json',JSON.stringify(renderDiagnostics,null,2));
