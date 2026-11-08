@@ -3,7 +3,6 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/dispatch-peach-logo-preview.yml'
       - '.github/scripts/verify-formal.cjs'
       - '.github/scripts/seal-release.cjs'
 permissions:
@@ -18,10 +17,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          source_ref="$(git ls-remote https://github.com/BaiMaGod/zhuanshouzhuo.git refs/heads/main | awk '{print $1}')"
+          if [[ ! "$source_ref" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "Could not resolve the current source main commit" >&2
+            exit 1
+          fi
+          payload="$(printf '{"ref":"main","inputs":{"source_ref":"%s","release_mode":"full"}}' "$source_ref")"
           curl --fail-with-body --silent --show-error \
             -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/BaiMaGod/zhuanshouzhuo-preview/actions/workflows/build-laya-pages.yml/dispatches \
-            -d '{"ref":"main","inputs":{"source_ref":"9b988d96605c00d2ac146997643bf32163c53928","release_mode":"full"}}'
+            -d "$payload"
+          echo "Dispatched full preview verification for source $source_ref"
