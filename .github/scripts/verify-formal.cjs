@@ -239,12 +239,14 @@ module.exports=async function(page,context,name,touch,results){
   const rings=[],all=[];let fixed=null;
   function visit(n){if(n.name==='board-rods')all.push(n);if(n.name==='board-fixed-rods')fixed=n;if(n.name?.startsWith('ring-id:'))rings.push(n.parent);for(let i=0;i<n.numChildren;i++)visit(n.getChildAt(i))}
   visit(Laya.stage);
+  const canvas=document.querySelector('canvas'),gl=canvas.getContext('webgl2')||canvas.getContext('webgl');
   const rods=all[0],first=rings[0],space=first?.parent,world=space?.parent;
   return {ringCount:rings.length,visibleRings:rings.filter(r=>r.visible).length,
    cachedBodies:rings.filter(r=>r.getChildAt(2)?.cacheAs==='bitmap').length,
    rodCache:rods?.cacheAs||'none',fixedRodNodes:fixed?.numChildren??null,
    fixedRodCommands:fixed?.graphics?.cmds?.length??null,worldZoom:world?.scaleX||null,
-   dpr:devicePixelRatio,viewport:{width:innerWidth,height:innerHeight}};
+   dpr:devicePixelRatio,viewport:{width:innerWidth,height:innerHeight},
+   backing:{width:canvas.width,height:canvas.height},samples:gl?.getParameter(gl.SAMPLES)??null};
  });
  fs.writeFileSync(results+'/'+name+'-formal-render-diagnostics.json',JSON.stringify(renderDiagnostics,null,2));
  console.log(name+' 54-ring render diagnostics: '+JSON.stringify(renderDiagnostics));
