@@ -277,4 +277,4 @@ module.exports.turn=turn;
 
 module.exports.view=view;
 module.exports.activeCount=activeCount;
-// Preview redeploy request: zhuanshouzhuo main 161bb72e9f99765ff0b4d82362a1520711603d89 (fix owned clasp lifecycle, PR #32).
+// Preview redeploy request: zhuanshouzhuo main 1bd4800fed283ad535ce07f033bd23a8f80603c9 (fix mounted clasp layer, PR #33).
