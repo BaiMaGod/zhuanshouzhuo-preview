@@ -24,7 +24,12 @@ const version=JSON.parse(fs.readFileSync('source/package.json'));
 assert.match(sourceSha,/^[a-f0-9]{40}$/,'Source checkout must resolve to a commit SHA');
 if(process.env.JADE_SOURCE_SHA)assert.equal(sourceSha,process.env.JADE_SOURCE_SHA,'Official source must match the pinned workflow source SHA');
 assert.match(version.version,/^\d+\.\d+\.\d+$/,'Package version must be semantic');
-const info={version:version.version,engine:'LayaAir 3.4.0',teachingLevels:10,formalLevels:100,sourceSha};
+const counts=JSON.parse(cp.execFileSync(process.execPath,['--input-type=module','-e',
+ "import {TEACHING_COUNT,FORMAL_COUNT} from './src/levels.js'; console.log(JSON.stringify({teachingLevels:TEACHING_COUNT,formalLevels:FORMAL_COUNT}));"
+],{cwd:'source',encoding:'utf8'}));
+assert.ok(Number.isInteger(counts.teachingLevels)&&counts.teachingLevels>0);
+assert.ok(Number.isInteger(counts.formalLevels)&&counts.formalLevels>0);
+const info={version:version.version,engine:'LayaAir 3.4.0',...counts,sourceSha};
 fs.writeFileSync(root+'/version.json',JSON.stringify(info));
 fs.writeFileSync(root+'/release.json',JSON.stringify({...info,previewSha:process.env.GITHUB_SHA,build:'Official checked-in LayaAir 3.4.0 project and startup scene'},null,2));
 fs.writeFileSync(root+'/.nojekyll','');
