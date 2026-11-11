@@ -75,7 +75,7 @@ async function run(browser,name,viewport,touch,allLevels){
  });
  const page=await context.newPage(),errors=[],screenshots=[];
  page.on('pageerror',e=>{errors.push(e.message);console.error(name+' page error: '+e.stack)});
- page.on('console',m=>{if(m.type()==='error')errors.push(m.text())});
+ page.on('console',m=>{if(m.type()==='error')errors.push(m.text()+' ['+(m.location().url||'unknown resource')+']')});
  page.on('requestfailed',r=>{if(new URL(r.url()).pathname.endsWith('/assets/audio/blossom-valley.mp3')&&r.failure()?.errorText==='net::ERR_ABORTED')return;errors.push('Request failed: '+r.url()+' '+r.failure()?.errorText)});
  page.on('response',r=>{if(r.status()>=400)errors.push('HTTP '+r.status()+' '+r.url())});
  const release=await page.request.get(new URL('release.json',base).href);assert.equal(release.status(),200);
