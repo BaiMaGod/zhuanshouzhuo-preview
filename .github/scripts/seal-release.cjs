@@ -27,8 +27,8 @@ assert.match(version.version,/^\d+\.\d+\.\d+$/,'Package version must be semantic
 const counts=JSON.parse(cp.execFileSync(process.execPath,['--input-type=module','-e',
  "import {TEACHING_COUNT,FORMAL_COUNT} from './src/levels.js'; console.log(JSON.stringify({teachingLevels:TEACHING_COUNT,formalLevels:FORMAL_COUNT}));"
 ],{cwd:'source',encoding:'utf8'}));
-assert.ok(Number.isInteger(counts.teachingLevels)&&counts.teachingLevels>0);
-assert.ok(Number.isInteger(counts.formalLevels)&&counts.formalLevels>0);
+assert.ok(Number.isInteger(counts.teachingLevels)&&counts.teachingLevels>0,'Invalid teaching level count');
+assert.ok(Number.isInteger(counts.formalLevels)&&counts.formalLevels>0,'Invalid formal level count');
 const info={version:version.version,engine:'LayaAir 3.4.0',...counts,sourceSha};
 fs.writeFileSync(root+'/version.json',JSON.stringify(info));
 fs.writeFileSync(root+'/release.json',JSON.stringify({...info,previewSha:process.env.GITHUB_SHA,build:'Official checked-in LayaAir 3.4.0 project and startup scene'},null,2));
