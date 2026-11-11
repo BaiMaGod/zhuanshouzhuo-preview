@@ -18,6 +18,7 @@ for(const name of ['exposeDebug']){
 }
 for(const name of ['jadeDebug','exposeDebug'])assert.ok(!source.includes(name),'Mutable diagnostic bridge remains: '+name);
 fs.writeFileSync(entry,source);
+// Record the source commit used for the preview, independently of the dispatcher commit.
 const sourceSha=cp.execFileSync('git',['-C','source','rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const version=JSON.parse(fs.readFileSync('source/package.json'));
 assert.match(sourceSha,/^[a-f0-9]{40}$/,'Source checkout must resolve to a commit SHA');
