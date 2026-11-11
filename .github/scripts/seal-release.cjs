@@ -24,6 +24,7 @@ const version=JSON.parse(fs.readFileSync('source/package.json'));
 assert.match(sourceSha,/^[a-f0-9]{40}$/,'Source checkout must resolve to a commit SHA');
 if(process.env.JADE_SOURCE_SHA)assert.equal(sourceSha,process.env.JADE_SOURCE_SHA,'Official source must match the pinned workflow source SHA');
 assert.match(version.version,/^\d+\.\d+\.\d+$/,'Package version must be semantic');
+// Derive the manifest from the shipped campaign definitions.
 const counts=JSON.parse(cp.execFileSync(process.execPath,['--input-type=module','-e',
  "import {TEACHING_COUNT,FORMAL_COUNT} from './src/levels.js'; console.log(JSON.stringify({teachingLevels:TEACHING_COUNT,formalLevels:FORMAL_COUNT}));"
 ],{cwd:'source',encoding:'utf8'}));
