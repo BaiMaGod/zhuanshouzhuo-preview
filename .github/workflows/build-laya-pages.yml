@@ -165,13 +165,7 @@ jobs:
       - name: Browser dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
-          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
-          if [[ -n "$chrome" ]]; then
-            "$chrome" --version
-            echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
-          else
-            .qa/node_modules/.bin/playwright install chromium
-          fi
+          .qa/node_modules/.bin/playwright install chromium
       - name: Real input and formal route regression
         env:
           JADE_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
@@ -266,13 +260,7 @@ jobs:
       - name: Browser dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
-          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
-          if [[ -n "$chrome" ]]; then
-            "$chrome" --version
-            echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
-          else
-            .qa/node_modules/.bin/playwright install chromium
-          fi
+          .qa/node_modules/.bin/playwright install chromium
       - name: Verify actual public release, zoom and touch rotation
         env:
           JADE_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
