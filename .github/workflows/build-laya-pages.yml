@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       source_sha: ${{ steps.source.outputs.sha }}
       verification_mode: ${{ steps.mode.outputs.verification_mode }}
@@ -134,7 +134,7 @@ jobs:
           retention-days: 7
   verify:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # A cold Playwright/Chromium dependency installation can consume 9+ minutes
     # before the mobile 54-ring real-touch regression even starts.
     timeout-minutes: 40
@@ -165,7 +165,13 @@ jobs:
       - name: Browser dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
-          .qa/node_modules/.bin/playwright install --with-deps chromium
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [[ -n "$chrome" ]]; then
+            "$chrome" --version
+            echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
+          else
+            .qa/node_modules/.bin/playwright install chromium
+          fi
       - name: Real input and formal route regression
         env:
           JADE_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
@@ -184,7 +190,7 @@ jobs:
           retention-days: 7
   deploy:
     needs: [build, verify]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment:
       name: github-pages
@@ -234,7 +240,7 @@ jobs:
           timeout: 1100000
   public-smoke:
     needs: [build, deploy]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Public smoke replays the same real-touch route after a fresh browser setup.
     timeout-minutes: 40
     strategy:
@@ -260,7 +266,13 @@ jobs:
       - name: Browser dependencies
         run: |
           npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
-          .qa/node_modules/.bin/playwright install --with-deps chromium
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          if [[ -n "$chrome" ]]; then
+            "$chrome" --version
+            echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$chrome" >> "$GITHUB_ENV"
+          else
+            .qa/node_modules/.bin/playwright install chromium
+          fi
       - name: Verify actual public release, zoom and touch rotation
         env:
           JADE_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
