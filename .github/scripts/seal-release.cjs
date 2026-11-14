@@ -43,4 +43,4 @@ function walk(dir){for(const f of fs.readdirSync(dir,{withFileTypes:true})){cons
 walk(root);
 fs.writeFileSync(root+'/_build-evidence.json',JSON.stringify({sourceSha,engine:'LayaAir 3.4.0',officialBuild:true,browserSmokePassed:false,files},null,2));
 console.log('Sealed official Web build: '+Object.keys(files).length+' SHA256 entries.');
-// Preview release requested for source 8d0075341035424c88ad1e39c5d5e366a240ba71.
+// Preview release requested for source e2e42a9b1e93a6b960868f31a88f200b1de2faf7.
