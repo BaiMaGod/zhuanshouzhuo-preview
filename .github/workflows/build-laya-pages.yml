@@ -1,5 +1,11 @@
 name: Build, verify and deploy jade game
 on:
+  # Dedicated deployment trigger. The trigger file pins an exact source SHA;
+  # a "deploy(full):" commit message forces the exhaustive verification gate.
+  push:
+    branches: [main]
+    paths:
+      - '.github/deploy-preview.trigger'
   workflow_dispatch:
     inputs:
       source_ref:
@@ -37,6 +43,10 @@ jobs:
         run: |
           set -euo pipefail
           source_sha="${REQUESTED_SOURCE_REF:-main}"
+          if [[ "${GITHUB_EVENT_NAME:-}" == "push" && -f .github/deploy-preview.trigger ]]; then
+            trigger_ref="$(node -e 'const fs=require("node:fs");const x=JSON.parse(fs.readFileSync(".github/deploy-preview.trigger","utf8"));process.stdout.write(String(x.source_sha||"main"))')"
+            if [[ -n "$trigger_ref" ]]; then source_sha="$trigger_ref"; fi
+          fi
           if [[ "$source_sha" == "main" ]]; then
             source_sha="$(git ls-remote --exit-code https://github.com/BaiMaGod/zhuanshouzhuo.git refs/heads/main | cut -f1)"
           fi
