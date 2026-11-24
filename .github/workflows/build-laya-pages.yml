@@ -229,6 +229,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: jade-verified-web-build
+          overwrite: true
           path: source/dist
           include-hidden-files: true
           retention-days: 7
@@ -237,11 +238,31 @@ jobs:
         with:
           name: jade-pages-${{ github.run_attempt }}
           path: source/dist
+      - name: Wait until Pages artifact metadata is visible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT: jade-pages-${{ github.run_attempt }}
+        run: |
+          node <<'NODE'
+          const assert=require('node:assert/strict');
+          (async()=>{
+            const url='https://api.github.com/repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+process.env.GITHUB_RUN_ID+'/artifacts';
+            for(let attempt=0;attempt<30;attempt++){
+              const r=await fetch(url,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});
+              assert.ok(r.ok,'Artifact metadata request '+r.status);
+              const data=await r.json(),artifact=data.artifacts.find(a=>a.name===process.env.PAGES_ARTIFACT&&!a.expired&&a.size_in_bytes>0);
+              if(artifact){console.log('Pages artifact visible: '+artifact.id);await new Promise(r=>setTimeout(r,15000));return}
+              console.log('Waiting for Pages metadata, attempt '+(attempt+1));
+              await new Promise(r=>setTimeout(r,5000));
+            }
+            throw Error('Pages artifact metadata did not become visible');
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
       - uses: actions/deploy-pages@v4
         id: deployment
         with:
           artifact_name: jade-pages-${{ github.run_attempt }}
-          timeout: 1100000
+          timeout: 600000
   public-smoke:
     needs: [build, deploy]
     runs-on: ubuntu-24.04
