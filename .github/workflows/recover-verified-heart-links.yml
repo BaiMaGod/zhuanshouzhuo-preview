@@ -1,0 +1,155 @@
+name: Publish sealed heart-link build
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-verified-heart-links.yml'
+permissions:
+  contents: read
+  actions: read
+  pages: write
+  id-token: write
+concurrency:
+  group: jade-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require successful quality gates from this exact release run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node <<'NODE'
+          const assert=require('node:assert/strict');
+          (async()=>{
+            const base='https://api.github.com/repos/'+process.env.GITHUB_REPOSITORY;
+            const headers={Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'};
+            const request=async path=>{const r=await fetch(base+path,{headers});assert.ok(r.ok,'GitHub API '+r.status);return r.json()};
+            const run=await request('/actions/runs/45390232183');
+            assert.equal(run.head_sha,'4da3968093f4fecc98e52c3545f9939d8e817ebc');
+            assert.equal(run.head_branch,'main');
+            const jobs=await request('/actions/runs/45390232183/jobs?per_page=100');
+            for(const name of ['build','verify (desktop)','verify (desktop-wide)','verify (mobile)','verify (narrow)']){
+              const job=jobs.jobs.find(j=>j.name===name);
+              assert.ok(job,'Missing quality gate '+name);assert.equal(job.conclusion,'success',name);
+            }
+            console.log('Original official build and four input gates succeeded for the pinned release run');
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45390232183
+          name: jade-candidate-web
+          path: source/dist
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45390232183
+          name: jade-browser-desktop
+          path: .qa/desktop
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45390232183
+          name: jade-browser-desktop-wide
+          path: .qa/desktop-wide
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45390232183
+          name: jade-browser-mobile
+          path: .qa/mobile
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 45390232183
+          name: jade-browser-narrow
+          path: .qa/narrow
+      - name: Check exact source and revalidate sealed payload and all four reports
+        env:
+          JADE_VERIFY_MODE: full
+        run: |
+          node -e "const fs=require('node:fs'),a=require('node:assert/strict');for(const p of ['source/dist/release.json','source/dist/_build-evidence.json'])a.equal(JSON.parse(fs.readFileSync(p)).sourceSha,'00212ec20b14200409108645a9ba78ea0960bfa1');"
+          node .github/scripts/accept-smoke.cjs
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          name: jade-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          path: source/dist
+      - name: Wait until Pages artifact metadata is visible
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT: jade-pages-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node <<'NODE'
+          const assert=require('node:assert/strict');
+          (async()=>{
+            const url='https://api.github.com/repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+process.env.GITHUB_RUN_ID+'/artifacts';
+            for(let attempt=0;attempt<30;attempt++){
+              const r=await fetch(url,{headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json'}});
+              assert.ok(r.ok,'Artifact metadata request '+r.status);
+              const data=await r.json(),artifact=data.artifacts.find(a=>a.name===process.env.PAGES_ARTIFACT&&!a.expired&&a.size_in_bytes>0);
+              if(artifact){console.log('Pages artifact visible: '+artifact.id);await new Promise(r=>setTimeout(r,15000));return}
+              console.log('Waiting for Pages metadata, attempt '+(attempt+1));
+              await new Promise(r=>setTimeout(r,5000));
+            }
+            throw Error('Pages artifact metadata did not become visible');
+          })().catch(e=>{console.error(e);process.exitCode=1});
+          NODE
+      - uses: actions/deploy-pages@v4
+        id: deployment
+        with:
+          artifact_name: jade-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          timeout: 600000
+  public-smoke:
+    needs: publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [desktop, desktop-wide, mobile, narrow]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BaiMaGod/zhuanshouzhuo
+          ref: 00212ec20b14200409108645a9ba78ea0960bfa1
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-jade-chromium-playwright-1.62.1
+      - name: Browser dependencies
+        run: |
+          npm install --prefix .qa --no-audit --no-fund playwright@1.62.1 pngjs@7.0.0
+          .qa/node_modules/.bin/playwright install chromium
+      - name: Verify actual public release and real touch input
+        env:
+          JADE_SOURCE_SHA: 00212ec20b14200409108645a9ba78ea0960bfa1
+          JADE_PROFILE: ${{ matrix.profile }}
+          JADE_PUBLIC_SMOKE: 'true'
+          JADE_VERIFY_MODE: full
+          JADE_URL: https://baimagod.github.io/zhuanshouzhuo-preview/
+        run: |
+          set -euo pipefail
+          mkdir -p .qa/public-results
+          node .github/scripts/verify-production.cjs 2>&1 | tee .qa/public-results/browser-checks.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jade-public-${{ matrix.profile }}
+          path: .qa/public-results
+          overwrite: true
+          retention-days: 7
