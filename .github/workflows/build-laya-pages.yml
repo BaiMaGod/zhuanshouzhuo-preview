@@ -126,6 +126,7 @@ jobs:
           set -euo pipefail
           npm ci --no-audit --no-fund
           npm run typecheck
+          npm run levels:audit-tray
           npm run build
           # Fail quickly on UI/unit regressions before the 100-level exhaustive solver gate.
           node --test tests/*.test.mjs
